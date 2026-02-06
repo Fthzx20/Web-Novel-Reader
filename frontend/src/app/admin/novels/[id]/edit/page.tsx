@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { ArrowDown, ArrowUp, BookmarkCheck } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/site-footer";
@@ -10,35 +11,40 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { chaptersBySlug, translationNovels } from "@/lib/sample";
-import { updateNovelAdmin, uploadNovelCover } from "@/lib/api";
+import {
+  fetchChaptersByNovel,
+  fetchNovel,
+  updateChapterAdmin,
+  updateNovelAdmin,
+  uploadNovelCover,
+  type AdminNovel,
+} from "@/lib/api";
 import { loadSession } from "@/lib/auth";
 
 type ChapterItem = {
   id: number;
   number: number;
   title: string;
+  content: string;
   releasedAt: string;
 };
 
 export default function EditNovelPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [checked, setChecked] = useState(false);
-  const novel = translationNovels[0];
-  const [status, setStatus] = useState(novel.status);
-  const [title, setTitle] = useState(novel.title);
-  const [team, setTeam] = useState(novel.team);
-  const [tags, setTags] = useState(novel.tags.join(", "));
-  const [synopsis, setSynopsis] = useState(novel.synopsis);
-  const [coverUrl, setCoverUrl] = useState((novel as { coverUrl?: string }).coverUrl ?? "");
+  const params = useParams();
+  const novelId = Number(Array.isArray(params.id) ? params.id[0] : params.id);
+  const [novel, setNovel] = useState<AdminNovel | null>(null);
+  const [status, setStatus] = useState("Ongoing");
+  const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [slug, setSlug] = useState("");
+  const [tags, setTags] = useState("");
+  const [synopsis, setSynopsis] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
   const [notice, setNotice] = useState("");
   const [chapters, setChapters] = useState<ChapterItem[]>(
-    (chaptersBySlug[novel.slug] ?? []).map((chapter) => ({
-      id: chapter.id,
-      number: chapter.number,
-      title: chapter.title,
-      releasedAt: chapter.releasedAt,
-    }))
+    []
   );
 
   useEffect(() => {
@@ -67,19 +73,67 @@ export default function EditNovelPage() {
       </div>
     );
   }
+  useEffect(() => {
+    if (!novelId) {
+      return;
+    }
+    Promise.all([fetchNovel(novelId), fetchChaptersByNovel(novelId)])
+      .then(([novelData, chapterData]) => {
+        setNovel(novelData);
+        setStatus(novelData.status || "Ongoing");
+        setTitle(novelData.title || "");
+        setAuthor(novelData.author || "");
+        setSlug(novelData.slug || "");
+        setTags((novelData.tags ?? []).join(", "));
+        setSynopsis(novelData.summary || "");
+        setCoverUrl(novelData.coverUrl || "");
+        setChapters(
+          chapterData.map((chapter) => ({
+            id: chapter.id,
+            number: chapter.number,
+            title: chapter.title,
+            content: chapter.content,
+            releasedAt: chapter.createdAt
+              ? new Date(chapter.createdAt).toLocaleDateString()
+              : "",
+          }))
+        );
+      })
+      .catch((err) => {
+        setNotice(err instanceof Error ? err.message : "Failed to load project.");
+      });
+  }, [novelId]);
 
-  const moveChapter = (index: number, direction: "up" | "down") => {
+  const moveChapter = async (index: number, direction: "up" | "down") => {
     const nextIndex = direction === "up" ? index - 1 : index + 1;
     if (nextIndex < 0 || nextIndex >= chapters.length) {
       return;
     }
-    setChapters((current) => {
-      const clone = [...current];
-      const temp = clone[index];
-      clone[index] = clone[nextIndex];
-      clone[nextIndex] = temp;
-      return clone;
-    });
+    const previous = chapters;
+    const clone = [...previous];
+    const current = clone[index];
+    const target = clone[nextIndex];
+    clone[index] = { ...current, number: target.number };
+    clone[nextIndex] = { ...target, number: current.number };
+    setChapters(clone);
+    try {
+      await Promise.all([
+        updateChapterAdmin(current.id, {
+          number: clone[index].number,
+          title: current.title,
+          content: current.content,
+        }),
+        updateChapterAdmin(target.id, {
+          number: clone[nextIndex].number,
+          title: target.title,
+          content: target.content,
+        }),
+      ]);
+      setNotice("Chapter order updated.");
+    } catch (err) {
+      setChapters(previous);
+      setNotice(err instanceof Error ? err.message : "Failed to update chapter order.");
+    }
   };
 
   return (
@@ -103,8 +157,8 @@ export default function EditNovelPage() {
             <CardContent className="space-y-4">
               {notice && <p className="text-sm text-amber-200">{notice}</p>}
               <Input placeholder="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
-              <Input placeholder="Alt title" defaultValue={novel.altTitle} />
-              <Input placeholder="Translation team" value={team} onChange={(event) => setTeam(event.target.value)} />
+              <Input placeholder="Author" value={author} onChange={(event) => setAuthor(event.target.value)} />
+              <Input placeholder="Slug" value={slug} onChange={(event) => setSlug(event.target.value)} />
               <Input
                 type="file"
                 accept="image/*"
@@ -134,15 +188,16 @@ export default function EditNovelPage() {
                       return;
                     }
                     try {
-                      await updateNovelAdmin(novel.id, {
+                      await updateNovelAdmin(novelId, {
                         title,
-                        author: novel.author,
+                        author,
                         summary: synopsis || "No summary provided.",
                         tags: tags
                           .split(",")
                           .map((item) => item.trim())
                           .filter(Boolean),
                         status: status.toLowerCase(),
+                        slug: slug.trim() || undefined,
                         coverUrl,
                       });
                       setNotice("Updated successfully.");
@@ -173,12 +228,17 @@ export default function EditNovelPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
               <p className="text-base font-semibold text-foreground">
-                {novel.title}
+                {novel?.title ?? "Loading..."}
               </p>
               <p>
-                {novel.team} · {novel.origin} · {status}
+                {author || "Unknown author"} · {status}
               </p>
-              <p>Latest chapter: {novel.latestChapter}</p>
+              <p>
+                Latest chapter:{" "}
+                {chapters.length
+                  ? Math.max(...chapters.map((chapter) => chapter.number))
+                  : "-"}
+              </p>
             </CardContent>
           </Card>
         </div>

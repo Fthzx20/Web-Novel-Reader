@@ -182,7 +182,7 @@ export function UploadNovelPanel() {
       </Card>
       <Card className="border-amber-200/40">
         <CardHeader>
-          <CardTitle>Inkstone-style cover</CardTitle>
+          <CardTitle>Cover</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm text-muted-foreground">
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-card/40 px-4 py-10 text-center">

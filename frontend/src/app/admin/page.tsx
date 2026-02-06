@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   BookOpenText,
@@ -7,7 +9,6 @@ import {
   LayoutGrid,
   MessageSquare,
   Star,
-  Users,
   Settings,
   Gauge,
 } from "lucide-react";
@@ -20,10 +21,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { teamSpotlight, translationNovels } from "@/lib/sample";
+import { teamSpotlight } from "@/lib/sample";
 import { loadSession } from "@/lib/auth";
 import { UploadNovelPanel } from "@/components/admin/upload-novel-panel";
 import { useSearchParams } from "next/navigation";
+import {
+  createChapterAdmin,
+  fetchNovelsAdmin,
+  type AdminNovel,
+} from "@/lib/api";
+import { resolveAssetUrl } from "@/lib/utils";
 
 type QueueItem = {
   id: number;
@@ -42,9 +49,10 @@ type ReportItem = {
 };
 
 export default function AdminPage() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checked, setChecked] = useState(false);
   const searchParams = useSearchParams();
+  const [session] = useState(() => loadSession());
+  const isAdmin = session?.user.role === "admin";
+  const checked = true;
   const sections = [
     {
       label: "Dashboard",
@@ -54,32 +62,21 @@ export default function AdminPage() {
         "Queue chapters, track translation notes, and keep the update feed moving without clutter.",
     },
     {
-      label: "Upload",
-      icon: FileUp,
-      title: "Uploader workspace",
-      description: "Add a series profile, cover, and publish status in one flow.",
-    },
-    {
-      label: "Projects",
-      icon: LayoutGrid,
-      title: "Project library",
-      description: "Track the status of every series you manage.",
-    },
-    {
       label: "Reports",
       icon: MessageSquare,
       title: "Reports inbox",
       description: "Resolve reader notes and translation flags.",
     },
-    {
-      label: "Settings",
-      icon: Settings,
-      title: "Workspace settings",
-      description: "Control defaults for releases and roles.",
-    },
   ];
 
-  const [activeSection, setActiveSection] = useState("Dashboard");
+  const [activeSection, setActiveSection] = useState(() => {
+    const tab = searchParams.get("tab");
+    const map: Record<string, string> = {
+      dashboard: "Dashboard",
+      reports: "Reports",
+    };
+    return tab && map[tab] ? map[tab] : "Dashboard";
+  });
   const [queue, setQueue] = useState<QueueItem[]>([
     {
       id: 1,
@@ -118,26 +115,28 @@ export default function AdminPage() {
     title: "",
     notes: "",
   });
+  const [novels, setNovels] = useState<AdminNovel[]>([]);
+  const [chapterForm, setChapterForm] = useState({
+    novelId: "",
+    number: "",
+    title: "",
+    content: "",
+  });
+  const [chapterNotice, setChapterNotice] = useState("");
+  const [libraryNotice, setLibraryNotice] = useState("");
 
   useEffect(() => {
-    const session = loadSession();
-    setIsAdmin(session?.user.role === "admin");
-    setChecked(true);
+    fetchNovelsAdmin()
+      .then((data) => {
+        setNovels(data);
+      })
+      .catch((err) => {
+        setLibraryNotice(err instanceof Error ? err.message : "Failed to load projects.");
+      });
   }, []);
 
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    const map: Record<string, string> = {
-      dashboard: "Dashboard",
-      upload: "Upload",
-      projects: "Projects",
-      reports: "Reports",
-      settings: "Settings",
-    };
-    if (tab && map[tab]) {
-      setActiveSection(map[tab]);
-    }
-  }, [searchParams]);
+  const selectedNovelId =
+    chapterForm.novelId || (novels.length ? String(novels[0].id) : "");
 
   const statusStyle = (status: QueueItem["status"]) => {
     if (status === "Released") {
@@ -147,6 +146,18 @@ export default function AdminPage() {
       return "outline";
     }
     return "subtle";
+  };
+
+  const activeMeta = sections.find((item) => item.label === activeSection) ?? sections[0];
+
+  const scrollToSection = (id: string) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   if (checked && !isAdmin) {
@@ -199,11 +210,24 @@ export default function AdminPage() {
                 <CardTitle>Quick actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button className="w-full gap-2">
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => {
+                    setActiveSection("Dashboard");
+                    scrollToSection("upload-chapter");
+                  }}
+                >
                   <FileUp className="h-4 w-4" />
                   Upload chapter
                 </Button>
-                <Button variant="outline" className="w-full gap-2" onClick={() => setActiveSection("Upload")}>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    setActiveSection("Dashboard");
+                    scrollToSection("publishing-workstation");
+                  }}
+                >
                   <LayoutGrid className="h-4 w-4" />
                   Upload novel
                 </Button>
@@ -220,13 +244,13 @@ export default function AdminPage() {
             <div className="flex flex-col gap-6">
               <div className="flex flex-col gap-3">
                 <Badge variant="subtle" className="w-fit">
-                  {sections.find((item) => item.label === activeSection)?.title}
+                  {activeMeta?.title}
                 </Badge>
                 <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-                  {sections.find((item) => item.label === activeSection)?.title}
+                  {activeMeta?.title}
                 </h1>
                 <p className="max-w-2xl text-muted-foreground">
-                  {sections.find((item) => item.label === activeSection)?.description}
+                  {activeMeta?.description}
                 </p>
               </div>
             </div>
@@ -288,7 +312,7 @@ export default function AdminPage() {
                       <div className="flex items-center justify-between">
                         <span>Active projects</span>
                         <span className="text-foreground">
-                          {translationNovels.length}
+                          {novels.length}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
@@ -300,37 +324,52 @@ export default function AdminPage() {
                 </div>
                 <Separator className="my-10" />
                 <div className="grid gap-6 lg:grid-cols-[1fr,1fr]">
-                  <Card>
+                  <Card id="upload-chapter">
                     <CardHeader>
                       <CardTitle>Upload a chapter</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <Input
-                        placeholder="Novel title"
-                        value={form.novel}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            novel: event.target.value,
-                          }))
-                        }
-                      />
+                      {chapterNotice && (
+                        <p className="text-sm text-amber-200">{chapterNotice}</p>
+                      )}
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Project</p>
+                        <select
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          value={selectedNovelId}
+                          onChange={(event) =>
+                            setChapterForm((current) => ({
+                              ...current,
+                              novelId: event.target.value,
+                            }))
+                          }
+                        >
+                          {novels.length === 0 && (
+                            <option value="">No projects found</option>
+                          )}
+                          {novels.map((novel) => (
+                            <option key={novel.id} value={novel.id}>
+                              {novel.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="grid gap-4 md:grid-cols-2">
                         <Input
                           placeholder="Chapter number"
-                          value={form.chapter}
+                          value={chapterForm.number}
                           onChange={(event) =>
-                            setForm((current) => ({
+                            setChapterForm((current) => ({
                               ...current,
-                              chapter: event.target.value,
+                              number: event.target.value,
                             }))
                           }
                         />
                         <Input
                           placeholder="Chapter title"
-                          value={form.title}
+                          value={chapterForm.title}
                           onChange={(event) =>
-                            setForm((current) => ({
+                            setChapterForm((current) => ({
                               ...current,
                               title: event.target.value,
                             }))
@@ -338,38 +377,54 @@ export default function AdminPage() {
                         />
                       </div>
                       <Textarea
-                        placeholder="Translator notes"
-                        value={form.notes}
+                        placeholder="Chapter content"
+                        value={chapterForm.content}
                         onChange={(event) =>
-                          setForm((current) => ({
+                          setChapterForm((current) => ({
                             ...current,
-                            notes: event.target.value,
+                            content: event.target.value,
                           }))
                         }
                       />
                       <Button
                         className="w-full"
-                        onClick={() => {
-                          if (!form.novel || !form.chapter || !form.title) {
+                        onClick={async () => {
+                          const novelId = Number(selectedNovelId);
+                          const chapterNumber = Number(chapterForm.number);
+                          if (!novelId || !chapterNumber || !chapterForm.title.trim() || !chapterForm.content.trim()) {
+                            setChapterNotice("Project, number, title, and content are required.");
                             return;
                           }
-                          setQueue((current) => [
-                            {
-                              id: Date.now(),
-                              novel: form.novel,
-                              chapter: form.chapter,
-                              title: form.title,
-                              status: "Queued",
-                              eta: "Pending",
-                            },
-                            ...current,
-                          ]);
-                          setForm({
-                            novel: "",
-                            chapter: "",
-                            title: "",
-                            notes: "",
-                          });
+                          try {
+                            await createChapterAdmin(novelId, {
+                              number: chapterNumber,
+                              title: chapterForm.title.trim(),
+                              content: chapterForm.content.trim(),
+                            });
+                            const selectedNovel = novels.find((item) => item.id === novelId);
+                            setQueue((current) => [
+                              {
+                                id: Date.now(),
+                                novel: selectedNovel?.title ?? "",
+                                chapter: String(chapterNumber),
+                                title: chapterForm.title.trim(),
+                                status: "Queued",
+                                eta: "Pending",
+                              },
+                              ...current,
+                            ]);
+                            setChapterNotice("Chapter uploaded.");
+                            setChapterForm((current) => ({
+                              ...current,
+                              number: "",
+                              title: "",
+                              content: "",
+                            }));
+                          } catch (err) {
+                            setChapterNotice(
+                              err instanceof Error ? err.message : "Failed to upload chapter."
+                            );
+                          }
                         }}
                       >
                         Add to queue
@@ -411,6 +466,23 @@ export default function AdminPage() {
                   </Card>
                 </div>
                 <Separator className="my-10" />
+                <div className="space-y-6" id="publishing-workstation">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        Publishing workstation
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Upload a draft or publish a new project without leaving the dashboard.
+                      </p>
+                    </div>
+                    <Button variant="outline" asChild>
+                      <Link href="/admin/novels/new">Open full workstation</Link>
+                    </Button>
+                  </div>
+                  <UploadNovelPanel />
+                </div>
+                <Separator className="my-10" />
                 <div className="grid gap-6 md:grid-cols-3">
                   {["Reads", "Ratings", "Comments"].map((label, index) => {
                     const Icon = [BookOpenText, Star, MessageSquare][index];
@@ -429,13 +501,49 @@ export default function AdminPage() {
                 </div>
                 <Separator className="my-10" />
                 <div className="grid gap-6 md:grid-cols-2">
-                  {translationNovels.map((novel) => (
+                  <div className="md:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          Project library
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Manage updates and open a project editor.
+                        </p>
+                        {libraryNotice && (
+                          <p className="text-xs text-amber-200">{libraryNotice}</p>
+                        )}
+                      </div>
+                      <Button variant="outline" asChild>
+                        <Link href="/admin/novels/new">Create new project</Link>
+                      </Button>
+                    </div>
+                  </div>
+                  {novels.map((novel) => (
                     <Card key={novel.id}>
                       <CardHeader>
                         <CardTitle>{novel.title}</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3 text-sm text-muted-foreground">
-                        <p>{novel.synopsis}</p>
+                        <div className="flex items-start gap-4">
+                          <div className="h-20 w-14 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-card/60">
+                            {novel.coverUrl ? (
+                              <Image
+                                src={resolveAssetUrl(novel.coverUrl)}
+                                alt={novel.title}
+                                width={56}
+                                height={80}
+                                className="h-full w-full object-cover"
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-sm font-semibold">
+                                {novel.title.charAt(0)}
+                              </div>
+                            )}
+                          </div>
+                          <p className="flex-1">{novel.summary ?? ""}</p>
+                        </div>
                         <div className="flex flex-wrap gap-2">
                           {novel.tags.map((tag) => (
                             <Badge key={tag} variant="outline">
@@ -444,16 +552,22 @@ export default function AdminPage() {
                           ))}
                         </div>
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>{novel.team}</span>
-                          <span>{novel.updatedAt}</span>
+                          <span>{novel.author}</span>
+                          <span>
+                            {novel.updatedAt
+                              ? new Date(novel.updatedAt).toLocaleDateString()
+                              : ""}
+                          </span>
                         </div>
-                        <Button variant="secondary">Edit project</Button>
+                        <Button variant="secondary" asChild>
+                          <Link href={`/admin/novels/${novel.id}/edit`}>Edit project</Link>
+                        </Button>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
                 <Separator className="my-10" />
-                <Card>
+                  <Card>
                   <CardHeader>
                     <CardTitle>Team spotlight</CardTitle>
                   </CardHeader>
@@ -479,7 +593,7 @@ export default function AdminPage() {
             {activeSection === "Upload" && (
               <div className="space-y-6">
                 <div className="rounded-xl border border-border/60 bg-card/40 px-4 py-3 text-sm text-muted-foreground">
-                  Inkstone-style uploader: add title, metadata, and a cover in one pass.
+                  Add title, metadata, and a cover in one pass.
                 </div>
                 <UploadNovelPanel />
               </div>
@@ -591,25 +705,31 @@ export default function AdminPage() {
             )}
             {activeSection === "Projects" && (
               <div className="grid gap-6 md:grid-cols-2">
-                {translationNovels.map((novel) => (
+                {novels.map((novel) => (
                   <Card key={novel.id}>
                     <CardHeader>
                       <CardTitle>{novel.title}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm text-muted-foreground">
-                      <p>{novel.synopsis}</p>
+                      <p>{novel.summary ?? ""}</p>
                       <div className="flex flex-wrap gap-2">
-                        {novel.tags.map((tag) => (
+                        {(novel.tags ?? []).map((tag) => (
                           <Badge key={tag} variant="outline">
                             {tag}
                           </Badge>
                         ))}
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{novel.team}</span>
-                        <span>{novel.updatedAt}</span>
+                        <span>{novel.author}</span>
+                        <span>
+                          {novel.updatedAt
+                            ? new Date(novel.updatedAt).toLocaleDateString()
+                            : ""}
+                        </span>
                       </div>
-                      <Button variant="secondary">Edit project</Button>
+                      <Button variant="secondary" asChild>
+                        <Link href={`/admin/novels/${novel.id}/edit`}>Edit project</Link>
+                      </Button>
                     </CardContent>
                   </Card>
                 ))}

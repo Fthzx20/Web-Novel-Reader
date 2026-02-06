@@ -1,4 +1,3 @@
-import { translationNovels } from "@/lib/sample";
 import { loadSession } from "@/lib/auth";
 
 export type Novel = {
@@ -19,6 +18,30 @@ export type Novel = {
   tags: string[];
   synopsis: string;
   age: string;
+};
+
+export type AdminNovel = {
+  id: number;
+  slug: string;
+  title: string;
+  author: string;
+  summary: string;
+  tags: string[];
+  coverUrl: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Chapter = {
+  id: number;
+  novelId: number;
+  number: number;
+  title: string;
+  content: string;
+  wordCount: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type AuthUser = {
@@ -63,17 +86,36 @@ function adminHeaders() {
   return { ...key, ...bearer };
 }
 
-export async function fetchNovels(): Promise<Novel[]> {
-  try {
-    const response = await fetch(`${API_BASE}/novels`, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error("Failed to load novels");
-    }
-    const data = (await response.json()) as Novel[];
-    return data.length ? data : translationNovels;
-  } catch {
-    return translationNovels;
+export async function fetchNovels(): Promise<AdminNovel[]> {
+  const response = await fetch(`${API_BASE}/novels`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load novels"));
   }
+  return (await response.json()) as AdminNovel[];
+}
+
+export async function fetchNovelsAdmin(): Promise<AdminNovel[]> {
+  const response = await fetch(`${API_BASE}/novels`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load novels"));
+  }
+  return (await response.json()) as AdminNovel[];
+}
+
+export async function fetchNovel(id: number): Promise<AdminNovel> {
+  const response = await fetch(`${API_BASE}/novels/${id}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load novel"));
+  }
+  return (await response.json()) as AdminNovel;
+}
+
+export async function fetchChaptersByNovel(novelId: number): Promise<Chapter[]> {
+  const response = await fetch(`${API_BASE}/novels/${novelId}/chapters`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load chapters"));
+  }
+  return (await response.json()) as Chapter[];
 }
 
 export async function registerUser(input: {
@@ -261,6 +303,28 @@ export async function createNovelAdmin(input: {
   }
 }
 
+export async function createChapterAdmin(
+  novelId: number,
+  input: {
+    number: number;
+    title: string;
+    content: string;
+  }
+): Promise<Chapter> {
+  const response = await fetch(`${API_BASE}/novels/${novelId}/chapters`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...adminHeaders(),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to create chapter"));
+  }
+  return (await response.json()) as Chapter;
+}
+
 export async function updateNovelAdmin(id: number, input: {
   title: string;
   author: string;
@@ -281,6 +345,28 @@ export async function updateNovelAdmin(id: number, input: {
   if (!response.ok) {
     throw new Error(await getErrorMessage(response, "Failed to update novel"));
   }
+}
+
+export async function updateChapterAdmin(
+  chapterId: number,
+  input: {
+    number: number;
+    title: string;
+    content: string;
+  }
+): Promise<Chapter> {
+  const response = await fetch(`${API_BASE}/chapters/${chapterId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...adminHeaders(),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to update chapter"));
+  }
+  return (await response.json()) as Chapter;
 }
 
 export type SiteSettings = {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clock, Flame, SlidersHorizontal, Star } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/site-footer";
@@ -11,65 +11,71 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { followNovel, unfollowNovel } from "@/lib/api";
+import { fetchNovels, followNovel, unfollowNovel, type AdminNovel } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
-import {
-  genreTags,
-  languageTags,
-  statusTags,
-  translationNovels,
-} from "@/lib/sample";
+import { resolveAssetUrl } from "@/lib/utils";
 
 const sortOptions = [
   { label: "Latest", value: "latest" },
-  { label: "Rating", value: "rating" },
-  { label: "Follows", value: "follows" },
+  { label: "Title", value: "title" },
 ];
 
-const parseCount = (value: string) => {
-  const clean = value.toLowerCase().trim();
-  if (clean.endsWith("k")) {
-    return Math.round(Number(clean.replace("k", "")) * 1000);
-  }
-  return Number(clean.replace(/[^0-9]/g, ""));
+const parseDate = (value: string) => {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
 };
 
 export default function LibraryPage() {
   const [query, setQuery] = useState("");
   const [activeStatus, setActiveStatus] = useState("All");
-  const [activeLanguage, setActiveLanguage] = useState("All");
   const [activeTag, setActiveTag] = useState("All");
   const [sortBy, setSortBy] = useState("latest");
   const [followed, setFollowed] = useState<Record<number, boolean>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [novels, setNovels] = useState<AdminNovel[]>([]);
+
+  useEffect(() => {
+    fetchNovels()
+      .then((data) => setNovels(data))
+      .catch((err) =>
+        setNotice(err instanceof Error ? err.message : "Unable to load library.")
+      );
+  }, []);
 
   const filteredNovels = useMemo(() => {
     const lowerQuery = query.toLowerCase();
-    const items = translationNovels.filter((novel) => {
+    const items = novels.filter((novel) => {
       const matchesQuery =
         novel.title.toLowerCase().includes(lowerQuery) ||
-        novel.altTitle.toLowerCase().includes(lowerQuery) ||
         novel.author.toLowerCase().includes(lowerQuery) ||
         novel.tags.some((tag) => tag.toLowerCase().includes(lowerQuery));
       const matchesStatus =
         activeStatus === "All" || novel.status === activeStatus;
-      const matchesLanguage =
-        activeLanguage === "All" || novel.origin === activeLanguage;
       const matchesTag = activeTag === "All" || novel.tags.includes(activeTag);
-      return matchesQuery && matchesStatus && matchesLanguage && matchesTag;
+      return matchesQuery && matchesStatus && matchesTag;
     });
 
     return [...items].sort((a, b) => {
-      if (sortBy === "rating") {
-        return b.rating - a.rating;
+      if (sortBy === "title") {
+        return a.title.localeCompare(b.title);
       }
-      if (sortBy === "follows") {
-        return parseCount(b.follows) - parseCount(a.follows);
-      }
-      return b.latestChapter - a.latestChapter;
+      return parseDate(b.updatedAt) - parseDate(a.updatedAt);
     });
-  }, [query, activeStatus, activeLanguage, activeTag, sortBy]);
+  }, [novels, query, activeStatus, activeTag, sortBy]);
+
+  const statusOptions = useMemo(() => {
+    const unique = Array.from(new Set(novels.map((novel) => novel.status).filter(Boolean)));
+    return unique.length ? unique : ["Ongoing", "Hiatus", "Completed"];
+  }, [novels]);
+
+  const tagOptions = useMemo(() => {
+    const tagSet = new Set<string>();
+    novels.forEach((novel) => {
+      novel.tags.forEach((tag) => tagSet.add(tag));
+    });
+    return Array.from(tagSet);
+  }, [novels]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -112,7 +118,7 @@ export default function LibraryPage() {
                 {filtersOpen && (
                   <div className="space-y-4 rounded-lg border border-border/40 bg-card/60 p-4">
                     <div className="flex flex-wrap gap-2">
-                      {["All", ...statusTags].map((status) => (
+                      {["All", ...statusOptions].map((status) => (
                         <Button
                           key={status}
                           variant={activeStatus === status ? "secondary" : "outline"}
@@ -124,21 +130,7 @@ export default function LibraryPage() {
                       ))}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {["All", ...languageTags].map((language) => (
-                        <Button
-                          key={language}
-                          variant={
-                            activeLanguage === language ? "secondary" : "outline"
-                          }
-                          size="sm"
-                          onClick={() => setActiveLanguage(language)}
-                        >
-                          {language}
-                        </Button>
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {["All", ...genreTags].map((tag) => (
+                      {["All", ...tagOptions].map((tag) => (
                         <Button
                           key={tag}
                           variant={activeTag === tag ? "secondary" : "outline"}
@@ -196,7 +188,6 @@ export default function LibraryPage() {
             onClick={() => {
               setQuery("");
               setActiveStatus("All");
-              setActiveLanguage("All");
               setActiveTag("All");
               setSortBy("latest");
             }}
@@ -206,16 +197,16 @@ export default function LibraryPage() {
         </div>
         <div className="mt-6 space-y-4">
           {filteredNovels.map((novel) => {
-            const coverUrl = (novel as { coverUrl?: string }).coverUrl;
+            const coverUrl = resolveAssetUrl(novel.coverUrl ?? "");
             return (
               <Card key={novel.id} className="hover:border-amber-200/40">
                 <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                     <div
-                      className={`flex h-28 w-20 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-linear-to-br ${novel.coverStyle}`}
+                      className="flex h-28 w-20 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-card/60"
                       aria-hidden
                     >
-                      {coverUrl ? (
+                      {novel.coverUrl ? (
                         <img
                           src={coverUrl}
                           alt={novel.title}
@@ -233,10 +224,9 @@ export default function LibraryPage() {
                           {novel.title}
                         </p>
                         <Badge variant="outline">{novel.status}</Badge>
-                        <Badge variant="subtle">{novel.origin}</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {novel.altTitle} · {novel.team} · {novel.author}
+                        {novel.author}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {novel.tags.map((tag) => (
@@ -249,9 +239,8 @@ export default function LibraryPage() {
                   </div>
                   <div className="flex flex-col gap-2 text-sm text-muted-foreground">
                     <span>
-                      Chapter {novel.latestChapter} · {novel.updatedAt}
+                      Updated {novel.updatedAt ? new Date(novel.updatedAt).toLocaleDateString() : ""}
                     </span>
-                    <span>{novel.follows} follows</span>
                     <div className="flex flex-wrap gap-2">
                       <Button asChild size="sm" className="flex-1">
                         <Link href={`/novels/${novel.slug}`}>Read</Link>

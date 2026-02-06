@@ -9,7 +9,7 @@ import { SiteNav } from "@/components/site/site-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchAnnouncements, fetchNovels } from "@/lib/api";
+import { fetchAnnouncements, fetchNovels, type AdminNovel } from "@/lib/api";
 
 type Announcement = {
   id: number;
@@ -21,34 +21,14 @@ type Announcement = {
 export default function UpdatesPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [notice, setNotice] = useState("");
-  const [novels, setNovels] = useState<
-    Array<{
-      id: number;
-      slug: string;
-      title: string;
-      latestChapter: number;
-      updatedAt: string;
-      team: string;
-    }>
-  >([]);
+  const [novels, setNovels] = useState<AdminNovel[]>([]);
 
   useEffect(() => {
     fetchAnnouncements()
       .then((data) => setAnnouncements(data))
       .catch(() => setNotice("Unable to load announcements."));
     fetchNovels()
-      .then((data) =>
-        setNovels(
-          data.map((item) => ({
-            id: item.id,
-            slug: item.slug,
-            title: item.title,
-            latestChapter: item.latestChapter ?? 0,
-            updatedAt: item.updatedAt ?? "",
-            team: item.team,
-          }))
-        )
-      )
+      .then((data) => setNovels(data))
       .catch(() => null);
   }, []);
 
@@ -85,7 +65,7 @@ export default function UpdatesPage() {
                   <div>
                     <p className="font-medium text-foreground">{item.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      Chapter {item.latestChapter} · {item.updatedAt}
+                      Updated {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ""}
                     </p>
                   </div>
                   <Button size="sm" variant="outline" asChild>

@@ -8,8 +8,7 @@ import { ChevronLeft, ChevronRight, Copy, Palette, Sliders, Text } from "lucide-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { chaptersBySlug, translationNovels } from "@/lib/sample";
-import { recordReadingHistory } from "@/lib/api";
+import { fetchChaptersByNovel, fetchNovels, recordReadingHistory, type AdminNovel, type Chapter } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
 
 type ReaderPrefs = {
@@ -26,34 +25,68 @@ const themeClasses: Record<ReaderPrefs["theme"], string> = {
 
 export default function ReaderPage() {
   const params = useParams();
-  const fallbackNovel = translationNovels[0];
   const slugParam = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const chapterParam = Array.isArray(params.chapterId)
     ? params.chapterId[0]
     : params.chapterId;
-  const resolvedSlug = slugParam ?? fallbackNovel.slug;
-  const novel =
-    translationNovels.find((item) => item.slug === resolvedSlug) ?? fallbackNovel;
-  const chapters =
-    chaptersBySlug[resolvedSlug] ??
-    chaptersBySlug[fallbackNovel.slug] ??
-    [];
+  const resolvedSlug = slugParam ?? "";
   const chapterId = Number(chapterParam);
+  const [novel, setNovel] = useState<AdminNovel | null>(null);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (!resolvedSlug) {
+      return;
+    }
+    fetchNovels()
+      .then((items) => {
+        const found = items.find((item) => item.slug === resolvedSlug) ?? null;
+        setNovel(found);
+        if (found) {
+          return fetchChaptersByNovel(found.id).then((data) => setChapters(data));
+        }
+        setChapters([]);
+        return undefined;
+      })
+      .catch((err) => {
+        setNotice(err instanceof Error ? err.message : "Failed to load chapter.");
+      });
+  }, [resolvedSlug]);
+
   const latestChapter = chapters[chapters.length - 1];
-  const chapter =
+  const rawChapter =
     chapters.find((item) => item.id === chapterId) ??
     latestChapter ??
-    chapters[0] ?? {
-      id: 0,
-      number: 0,
-      title: "Chapter unavailable",
-      words: 0,
-      time: "",
-      releasedAt: "",
-      content: [
-        "This chapter is not available yet. Try another chapter from the list.",
-      ],
-    };
+    chapters[0] ?? null;
+
+  const chapter = rawChapter
+    ? {
+        id: rawChapter.id,
+        number: rawChapter.number,
+        title: rawChapter.title,
+        content: rawChapter.content
+          ? rawChapter.content.split(/\n\s*\n/).filter(Boolean)
+          : ["This chapter is empty."],
+      }
+    : {
+        id: 0,
+        number: 0,
+        title: "Chapter unavailable",
+        content: [
+          notice || "This chapter is not available yet. Try another chapter from the list.",
+        ],
+      };
+
+  const chapterWords = rawChapter?.content
+    ? rawChapter.content.trim().split(/\s+/).length
+    : 0;
+  const chapterReadTime = chapterWords
+    ? `${Math.max(1, Math.round(chapterWords / 200))} min read`
+    : "";
+  const chapterRelease = rawChapter?.createdAt
+    ? new Date(rawChapter.createdAt).toLocaleDateString()
+    : "";
 
   const [fontScale, setFontScale] = useState(1);
   const [width, setWidth] = useState<ReaderPrefs["width"]>("comfy");
@@ -98,7 +131,7 @@ export default function ReaderPage() {
       return;
     }
     const session = loadSession();
-    if (!session || !chapter.id) {
+    if (!session || !chapter.id || !novel) {
       return;
     }
     recordReadingHistory(session.token, {
@@ -107,7 +140,7 @@ export default function ReaderPage() {
       chapterId: chapter.id,
       chapterTitle: `Chapter ${chapter.number}: ${chapter.title}`,
     }).catch(() => null);
-  }, [chapter.id, chapter.number, chapter.title, novel.slug, novel.title]);
+  }, [chapter.id, chapter.number, chapter.title, novel?.slug, novel?.title]);
 
   const widthClass =
     width === "narrow"
@@ -144,7 +177,7 @@ export default function ReaderPage() {
           <div className="space-y-1">
             <Badge variant="outline">Reading mode</Badge>
             <h1 className="text-2xl font-semibold tracking-tight">
-              {novel.title}
+              {novel?.title ?? "Loading..."}
             </h1>
             <p className="text-sm text-muted-foreground">
               Chapter {chapter.number}: {chapter.title}
@@ -152,7 +185,7 @@ export default function ReaderPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" asChild>
-              <Link href={`/novels/${novel.slug}`}>Series page</Link>
+              <Link href={novel ? `/novels/${novel.slug}` : "/library"}>Series page</Link>
             </Button>
             <Button
               variant="outline"
@@ -237,7 +270,7 @@ export default function ReaderPage() {
                   asChild={Boolean(previousChapter)}
                 >
                   {previousChapter ? (
-                    <Link href={`/read/${novel.slug}/${previousChapter.id}`}>
+                    <Link href={novel ? `/read/${novel.slug}/${previousChapter.id}` : "#"}>
                       <ChevronLeft className="mr-2 h-4 w-4" />
                       Prev
                     </Link>
@@ -255,7 +288,7 @@ export default function ReaderPage() {
                   asChild={Boolean(nextChapter)}
                 >
                   {nextChapter ? (
-                    <Link href={`/read/${novel.slug}/${nextChapter.id}`}>
+                    <Link href={novel ? `/read/${novel.slug}/${nextChapter.id}` : "#"}>
                       Next
                       <ChevronRight className="ml-2 h-4 w-4" />
                     </Link>
@@ -277,15 +310,15 @@ export default function ReaderPage() {
             <CardContent className="space-y-3 text-sm text-muted-foreground">
               <div className="flex items-center justify-between">
                 <span>Words</span>
-                <span className="text-foreground">{chapter.words}</span>
+                <span className="text-foreground">{chapterWords || "-"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Release</span>
-                <span className="text-foreground">{chapter.releasedAt}</span>
+                <span className="text-foreground">{chapterRelease || "-"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Time</span>
-                <span className="text-foreground">{chapter.time}</span>
+                <span className="text-foreground">{chapterReadTime || "-"}</span>
               </div>
             </CardContent>
           </Card>
@@ -302,6 +335,46 @@ export default function ReaderPage() {
               </p>
             ))}
           </div>
+        </div>
+
+        <div className="mx-auto mt-10 flex w-full max-w-3xl flex-wrap items-center justify-between gap-3">
+          <Button
+            variant="outline"
+            disabled={!previousChapter}
+            asChild={Boolean(previousChapter)}
+          >
+            {previousChapter ? (
+              <Link href={`/read/${novel.slug}/${previousChapter.id}`}>
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Previous
+              </Link>
+            ) : (
+              <span>
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Previous
+              </span>
+            )}
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href={`/novels/${novel.slug}`}>ToC</Link>
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!nextChapter}
+            asChild={Boolean(nextChapter)}
+          >
+            {nextChapter ? (
+              <Link href={`/read/${novel.slug}/${nextChapter.id}`}>
+                Next
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Link>
+            ) : (
+              <span>
+                Next
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </span>
+            )}
+          </Button>
         </div>
       </div>
     </div>

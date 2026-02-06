@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BookOpenText, Crown, Flame, Menu, User, X } from "lucide-react";
+import { BookOpenText, Crown, Flame, Menu, User, X, History } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { clearSession, loadSession } from "@/lib/auth";
 import { fetchSiteSettings } from "@/lib/api";
+import { resolveAssetUrl } from "@/lib/utils";
 
 export function SiteNav() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -15,6 +16,7 @@ export function SiteNav() {
   const [session, setSession] = useState(() => loadSession());
   const [siteTitle, setSiteTitle] = useState("Malaz Translation");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const resolvedLogoUrl = logoUrl ? resolveAssetUrl(logoUrl) : null;
   const isSignedIn = Boolean(session);
   const displayName = session?.user.name ?? "Profile";
   const isAdmin = session?.user.role === "admin";
@@ -33,9 +35,9 @@ export function SiteNav() {
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/50 bg-card/80">
-            {logoUrl ? (
+            {resolvedLogoUrl ? (
               <Image
-                src={logoUrl}
+                src={resolvedLogoUrl}
                 alt="Site logo"
                 width={24}
                 height={24}
@@ -59,6 +61,7 @@ export function SiteNav() {
           </Link>
           {isSignedIn && (
             <Link href="/account/history" className="flex items-center gap-2 hover:text-foreground">
+              <History className="h-4 w-4" />
               History
             </Link>
           )}

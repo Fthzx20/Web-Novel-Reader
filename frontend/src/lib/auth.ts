@@ -11,7 +11,7 @@ export type AuthSession = {
   user: AuthUser;
 };
 
-const AUTH_KEY = "nocturne:auth";
+export const AUTH_KEY = "nocturne:auth";
 
 export function loadSession(): AuthSession | null {
   if (typeof window === "undefined") {

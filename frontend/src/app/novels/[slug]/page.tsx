@@ -14,18 +14,18 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   addComment,
   bookmarkNovel,
+  fetchChaptersByNovel,
   fetchComments,
+  fetchNovels,
   followNovel,
   rateNovel,
   unbookmarkNovel,
   unfollowNovel,
+  type AdminNovel,
+  type Chapter,
 } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
-import {
-  chaptersBySlug,
-  commentsBySlug,
-  translationNovels,
-} from "@/lib/sample";
+import { resolveAssetUrl } from "@/lib/utils";
 
 type StoredState = {
   follow: boolean;
@@ -38,13 +38,12 @@ type StoredState = {
 export default function NovelPage() {
   const params = useParams();
   const slugParam = Array.isArray(params.slug) ? params.slug[0] : params.slug;
-  const resolvedSlug = slugParam ?? translationNovels[0]?.slug;
-  const novel = translationNovels.find((item) => item.slug === resolvedSlug) ??
-    translationNovels[0];
-  const coverUrl = (novel as { coverUrl?: string }).coverUrl;
-  const chapters = chaptersBySlug[novel.slug] ?? [];
+  const resolvedSlug = slugParam ?? "";
+  const [novel, setNovel] = useState<AdminNovel | null>(null);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const coverUrl = novel?.coverUrl ? resolveAssetUrl(novel.coverUrl) : "";
   const latestChapter = chapters[chapters.length - 1];
-  const storageKey = `novel:${novel.slug}:state`;
+  const storageKey = novel ? `novel:${novel.slug}:state` : "";
 
   const getStoredState = () => {
     if (typeof window === "undefined") {
@@ -67,9 +66,7 @@ export default function NovelPage() {
   const [follow, setFollow] = useState(storedState?.follow ?? false);
   const [bookmark, setBookmark] = useState(storedState?.bookmark ?? false);
   const [rating, setRating] = useState<number | null>(storedState?.rating ?? null);
-  const [comments, setComments] = useState(
-    storedState?.comments ?? commentsBySlug[novel.slug] ?? []
-  );
+  const [comments, setComments] = useState(storedState?.comments ?? []);
   const [commentText, setCommentText] = useState("");
   const [readChapters, setReadChapters] = useState<number[]>(
     storedState?.readChapters ?? []
@@ -78,10 +75,32 @@ export default function NovelPage() {
   const [volumeFilter, setVolumeFilter] = useState<number | "All">("All");
   const [notice, setNotice] = useState("");
 
+  useEffect(() => {
+    if (!resolvedSlug) {
+      return;
+    }
+    fetchNovels()
+      .then((items) => {
+        const found = items.find((item) => item.slug === resolvedSlug) ?? null;
+        setNovel(found);
+        if (found) {
+          return fetchChaptersByNovel(found.id).then((data) => setChapters(data));
+        }
+        setChapters([]);
+        return undefined;
+      })
+      .catch((err) => {
+        setNotice(err instanceof Error ? err.message : "Failed to load novel.");
+      });
+  }, [resolvedSlug]);
+
   const commentsChapterId = latestChapter?.id ?? chapters[0]?.id;
 
   useEffect(() => {
     if (typeof window === "undefined") {
+      return;
+    }
+    if (!storageKey) {
       return;
     }
     const payload: StoredState = {
@@ -131,17 +150,56 @@ export default function NovelPage() {
     );
   };
 
-  const volumes = useMemo(() => {
-    const unique = Array.from(new Set(chapters.map((chapter) => chapter.volume)));
-    return unique.sort((a, b) => a - b);
+  const chaptersWithVolume = useMemo(() => {
+    return chapters.map((chapter) => ({
+      ...chapter,
+      volume: Math.max(1, Math.ceil(chapter.number / 10)),
+    }));
   }, [chapters]);
+
+  const getWordCount = (content: string) => {
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return 0;
+    }
+    return trimmed.split(/\s+/).length;
+  };
+
+  const formatReadTime = (words: number) => {
+    if (!words) {
+      return "";
+    }
+    const minutes = Math.max(1, Math.round(words / 200));
+    return `${minutes} min read`;
+  };
+
+  const volumes = useMemo(() => {
+    const unique = Array.from(new Set(chaptersWithVolume.map((chapter) => chapter.volume)));
+    return unique.sort((a, b) => a - b);
+  }, [chaptersWithVolume]);
 
   const visibleChapters = useMemo(() => {
     if (volumeFilter === "All") {
-      return chapters;
+      return chaptersWithVolume;
     }
-    return chapters.filter((chapter) => chapter.volume === volumeFilter);
-  }, [chapters, volumeFilter]);
+    return chaptersWithVolume.filter((chapter) => chapter.volume === volumeFilter);
+  }, [chaptersWithVolume, volumeFilter]);
+
+  if (!novel) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <SiteNav />
+        <main className="mx-auto w-full max-w-6xl px-6 py-16">
+          <Card>
+            <CardContent className="py-10 text-sm text-muted-foreground">
+              {notice || "Loading series..."}
+            </CardContent>
+          </Card>
+        </main>
+        <SiteFooter />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -151,7 +209,7 @@ export default function NovelPage() {
           <div className="space-y-6">
             <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
               <div
-                className={`flex h-40 w-28 items-center justify-center rounded-2xl border border-border/50 bg-linear-to-br ${novel.coverStyle} text-3xl font-semibold`}
+                className="flex h-40 w-28 items-center justify-center rounded-2xl border border-border/50 bg-card/60 text-3xl font-semibold"
               >
                 {coverUrl ? (
                   <img
@@ -169,9 +227,9 @@ export default function NovelPage() {
                   {novel.title}
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  {novel.altTitle} · {novel.origin} · {novel.team}
+                  {novel.author}
                 </p>
-                <p className="text-sm text-muted-foreground">{novel.synopsis}</p>
+                <p className="text-sm text-muted-foreground">{novel.summary}</p>
                 <div className="flex flex-wrap gap-2">
                   {novel.tags.map((tag) => (
                     <Badge key={tag} variant="subtle">
@@ -283,6 +341,7 @@ export default function NovelPage() {
                   ))}
                 </div>
                 {visibleChapters.map((chapter) => (
+                  
                   <Link
                     key={chapter.id}
                     href={`/read/${novel.slug}/${chapter.id}`}
@@ -290,12 +349,26 @@ export default function NovelPage() {
                     onClick={() => markRead(chapter.id)}
                   >
                     <div>
-                      <p className="font-medium">
-                        Vol. {chapter.volume} · Chapter {chapter.number}: {chapter.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {chapter.words} words · {chapter.time} · {chapter.releasedAt}
-                      </p>
+                      {(() => {
+                        const words = getWordCount(chapter.content);
+                        const releasedAt = chapter.createdAt
+                          ? new Date(chapter.createdAt).toLocaleDateString()
+                          : "";
+                        const timeLabel = formatReadTime(words);
+                        return (
+                          <>
+                            <p className="font-medium">
+                              Vol. {chapter.volume} · Chapter {chapter.number}: {chapter.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {words ? `${words} words` : ""}
+                              {words && timeLabel ? " · " : ""}
+                              {timeLabel}
+                              {releasedAt ? ` · ${releasedAt}` : ""}
+                            </p>
+                          </>
+                        );
+                      })()}
                     </div>
                     <Badge variant={readChapters.includes(chapter.id) ? "subtle" : "outline"}>
                       {readChapters.includes(chapter.id) ? "Read" : "New"}
@@ -312,24 +385,28 @@ export default function NovelPage() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
                 <div className="flex items-center justify-between">
-                  <span>Origin</span>
-                  <span className="text-foreground">{novel.origin}</span>
+                  <span>Author</span>
+                  <span className="text-foreground">{novel.author}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Team</span>
-                  <span className="text-foreground">{novel.team}</span>
+                  <span>Status</span>
+                  <span className="text-foreground">{novel.status}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Chapters</span>
-                  <span className="text-foreground">{novel.chapters}</span>
+                  <span className="text-foreground">{chapters.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Age rating</span>
-                  <span className="text-foreground">{novel.age}</span>
+                  <span>Created</span>
+                  <span className="text-foreground">
+                    {novel.createdAt ? new Date(novel.createdAt).toLocaleDateString() : ""}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Last update</span>
-                  <span className="text-foreground">{novel.updatedAt}</span>
+                  <span className="text-foreground">
+                    {novel.updatedAt ? new Date(novel.updatedAt).toLocaleDateString() : ""}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -340,7 +417,7 @@ export default function NovelPage() {
               <CardContent className="space-y-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2 text-foreground">
                   <Star className="h-4 w-4 text-amber-200" />
-                  {novel.rating} average · {novel.follows} follows
+                  Rate this series
                 </div>
                 <div className="flex items-center gap-2">
                   {Array.from({ length: 5 }).map((_, index) => (

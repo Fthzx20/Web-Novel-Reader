@@ -20,7 +20,10 @@ func main() {
 	}
 	repo := NewAppRepository(store, db)
 	router := gin.Default()
-	router.Use(cors.Default())
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowAllOrigins = true
+	corsConfig.AllowHeaders = append(corsConfig.AllowHeaders, "Authorization", "X-API-Key")
+	router.Use(cors.New(corsConfig))
 	router.Static("/uploads", "./uploads")
 	registerRoutes(router, repo, cfg)
 

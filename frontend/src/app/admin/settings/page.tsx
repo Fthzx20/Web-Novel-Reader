@@ -19,14 +19,15 @@ import {
   updateSiteSettings,
 } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
+import { resolveAssetUrl } from "@/lib/utils";
 
 export default function AdminSettingsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [notice, setNotice] = useState("");
   const [settings, setSettings] = useState({
-    title: "",
+    title: "Malaz Translation",
     tagline: "",
-    logoUrl: "",
+    logoUrl: "favicon.ico",
   });
   const [announcements, setAnnouncements] = useState<
     Array<{ id: number; title: string; body: string }>
@@ -110,7 +111,11 @@ export default function AdminSettingsPage() {
                 />
                 {settings.logoUrl && (
                   <div className="flex items-center gap-3 rounded-md border border-border/60 p-2">
-                    <img src={settings.logoUrl} alt="Logo preview" className="h-10 w-10 object-contain" />
+                    <img
+                      src={resolveAssetUrl(settings.logoUrl)}
+                      alt="Logo preview"
+                      className="h-10 w-10 object-contain"
+                    />
                     <span className="text-xs text-muted-foreground">{settings.logoUrl}</span>
                   </div>
                 )}
