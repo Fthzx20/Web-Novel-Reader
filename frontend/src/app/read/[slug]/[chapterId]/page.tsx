@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchChaptersByNovel, fetchNovels, recordReadingHistory, type AdminNovel, type Chapter } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
+import { resolveAssetUrl } from "@/lib/utils";
 
 type ReaderPrefs = {
   fontScale: number;
@@ -168,6 +169,29 @@ export default function ReaderPage() {
       setCopyStatus("Copy failed");
     }
     window.setTimeout(() => setCopyStatus(""), 2000);
+  };
+
+  const renderParagraph = (text: string, index: number) => {
+    const parts = text.split(/(\[\[img:[^\]]+\]\])/g);
+    return (
+      <p key={index} className="mb-4 last:mb-0">
+        {parts.map((part, partIndex) => {
+          const match = part.match(/^\[\[img:(.+)\]\]$/);
+          if (!match) {
+            return <span key={partIndex}>{part}</span>;
+          }
+          const url = resolveAssetUrl(match[1]);
+          return (
+            <img
+              key={partIndex}
+              src={url}
+              alt="Illustration"
+              className="mx-2 inline-block max-h-64 max-w-full rounded-lg border border-border/40 align-middle"
+            />
+          );
+        })}
+      </p>
+    );
   };
 
   return (
@@ -329,11 +353,9 @@ export default function ReaderPage() {
             className={`mx-auto rounded-2xl border p-6 ${themeClasses[theme]} ${widthClass}`}
             style={{ fontSize: `${16 * fontScale}px`, lineHeight: 1.8 }}
           >
-            {chapter.content.map((paragraph, index) => (
-              <p key={index} className="mb-4 last:mb-0">
-                {paragraph}
-              </p>
-            ))}
+            {chapter.content.map((paragraph, index) =>
+              renderParagraph(paragraph, index)
+            )}
           </div>
         </div>
 
@@ -344,10 +366,17 @@ export default function ReaderPage() {
             asChild={Boolean(previousChapter)}
           >
             {previousChapter ? (
-              <Link href={`/read/${novel.slug}/${previousChapter.id}`}>
-                <ChevronLeft className="mr-2 h-4 w-4" />
-                Previous
-              </Link>
+              novel ? (
+                <Link href={`/read/${novel.slug}/${previousChapter.id}`}>
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  Previous
+                </Link>
+              ) : (
+                <span>
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  Previous
+                </span>
+              )
             ) : (
               <span>
                 <ChevronLeft className="mr-2 h-4 w-4" />
@@ -355,8 +384,8 @@ export default function ReaderPage() {
               </span>
             )}
           </Button>
-          <Button variant="outline" asChild>
-            <Link href={`/novels/${novel.slug}`}>ToC</Link>
+          <Button variant="outline" asChild={Boolean(novel)}>
+            {novel ? <Link href={`/novels/${novel.slug}`}>ToC</Link> : <span>ToC</span>}
           </Button>
           <Button
             variant="outline"
@@ -364,10 +393,17 @@ export default function ReaderPage() {
             asChild={Boolean(nextChapter)}
           >
             {nextChapter ? (
-              <Link href={`/read/${novel.slug}/${nextChapter.id}`}>
-                Next
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Link>
+              novel ? (
+                <Link href={`/read/${novel.slug}/${nextChapter.id}`}>
+                  Next
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Link>
+              ) : (
+                <span>
+                  Next
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </span>
+              )
             ) : (
               <span>
                 Next

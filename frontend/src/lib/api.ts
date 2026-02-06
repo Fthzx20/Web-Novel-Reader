@@ -67,6 +67,27 @@ export type ReadingHistoryEntry = {
   readAt: string;
 };
 
+export type ReleaseQueueItem = {
+  id: number;
+  novelId: number;
+  novelTitle: string;
+  chapterNumber: number;
+  title: string;
+  status: string;
+  eta: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ModerationReport = {
+  id: number;
+  novelId: number;
+  novelTitle: string;
+  note: string;
+  createdAt: string;
+};
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? "";
 
@@ -116,6 +137,93 @@ export async function fetchChaptersByNovel(novelId: number): Promise<Chapter[]> 
     throw new Error(await getErrorMessage(response, "Failed to load chapters"));
   }
   return (await response.json()) as Chapter[];
+}
+
+export async function fetchReleaseQueue(): Promise<ReleaseQueueItem[]> {
+  const response = await fetch(`${API_BASE}/release-queue`, {
+    headers: {
+      ...adminHeaders(),
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load release queue"));
+  }
+  return (await response.json()) as ReleaseQueueItem[];
+}
+
+export async function createReleaseQueue(input: {
+  novelId: number;
+  chapterNumber: number;
+  title: string;
+  status?: string;
+  eta?: string;
+  notes?: string;
+}): Promise<ReleaseQueueItem> {
+  const response = await fetch(`${API_BASE}/release-queue`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...adminHeaders(),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to create release queue item"));
+  }
+  return (await response.json()) as ReleaseQueueItem;
+}
+
+export async function updateReleaseQueueStatus(id: number, status: string): Promise<ReleaseQueueItem> {
+  const response = await fetch(`${API_BASE}/release-queue/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...adminHeaders(),
+    },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to update release queue"));
+  }
+  return (await response.json()) as ReleaseQueueItem;
+}
+
+export async function deleteReleaseQueue(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/release-queue/${id}`, {
+    method: "DELETE",
+    headers: {
+      ...adminHeaders(),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to delete release queue item"));
+  }
+}
+
+export async function fetchModerationReports(): Promise<ModerationReport[]> {
+  const response = await fetch(`${API_BASE}/reports`, {
+    headers: {
+      ...adminHeaders(),
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load reports"));
+  }
+  return (await response.json()) as ModerationReport[];
+}
+
+export async function deleteModerationReport(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/reports/${id}`, {
+    method: "DELETE",
+    headers: {
+      ...adminHeaders(),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to delete report"));
+  }
 }
 
 export async function registerUser(input: {
@@ -303,6 +411,18 @@ export async function createNovelAdmin(input: {
   }
 }
 
+export async function deleteNovelAdmin(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/novels/${id}`, {
+    method: "DELETE",
+    headers: {
+      ...adminHeaders(),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to delete novel"));
+  }
+}
+
 export async function createChapterAdmin(
   novelId: number,
   input: {
@@ -367,6 +487,18 @@ export async function updateChapterAdmin(
     throw new Error(await getErrorMessage(response, "Failed to update chapter"));
   }
   return (await response.json()) as Chapter;
+}
+
+export async function deleteChapterAdmin(chapterId: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/chapters/${chapterId}`, {
+    method: "DELETE",
+    headers: {
+      ...adminHeaders(),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to delete chapter"));
+  }
 }
 
 export type SiteSettings = {
@@ -440,6 +572,23 @@ export async function uploadNovelCover(file: File): Promise<string> {
   });
   if (!response.ok) {
     throw new Error(await getErrorMessage(response, "Failed to upload cover"));
+  }
+  const data = (await response.json()) as { url: string };
+  return data.url;
+}
+
+export async function uploadIllustration(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE}/uploads/illustration`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(),
+    },
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to upload illustration"));
   }
   const data = (await response.json()) as { url: string };
   return data.url;

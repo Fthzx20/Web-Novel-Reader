@@ -1,6 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Trophy, BookOpenText } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/site-footer";
@@ -9,25 +11,74 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { latestUpdates, translationNovels } from "@/lib/sample";
-import { loadSession } from "@/lib/auth";
+import { fetchNovels, fetchReadingHistory, type AdminNovel } from "@/lib/api";
+import { loadSession, type AuthSession } from "@/lib/auth";
+import { resolveAssetUrl } from "@/lib/utils";
 
-const parseCount = (value: string) => {
-  const clean = value.toLowerCase().trim();
-  if (clean.endsWith("k")) {
-    const base = Number(clean.replace("k", ""));
-    return Math.round(base * 1000);
-  }
-  return Number(clean.replace(/[^0-9]/g, ""));
+const parseDate = (value: string) => {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
 };
 
 export default function Home() {
-  const session = loadSession();
+  const [session, setSession] = useState<AuthSession | null>(null);
   const isAdmin = session?.user.role === "admin";
-  const rankings = [...translationNovels]
-    .sort((a, b) => parseCount(b.follows) - parseCount(a.follows))
-    .slice(0, 5);
-  const newSeries = translationNovels.slice(0, 4);
+  const [novels, setNovels] = useState<AdminNovel[]>([]);
+  const [notice, setNotice] = useState("");
+  const [recentRead, setRecentRead] = useState<{
+    novelSlug: string;
+    novelTitle: string;
+    chapterTitle: string;
+  } | null>(null);
+
+  useEffect(() => {
+    setSession(loadSession());
+  }, []);
+
+  useEffect(() => {
+    fetchNovels()
+      .then((data) => setNovels(data))
+      .catch((err) =>
+        setNotice(err instanceof Error ? err.message : "Failed to load updates.")
+      );
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    fetchReadingHistory(session.token)
+      .then((items) => {
+        if (!items.length) {
+          return;
+        }
+        const latest = items[0];
+        setRecentRead({
+          novelSlug: latest.novelSlug,
+          novelTitle: latest.novelTitle,
+          chapterTitle: latest.chapterTitle,
+        });
+      })
+      .catch(() => null);
+  }, [session]);
+
+  const rankings = useMemo(() => {
+    return [...novels]
+      .sort((a, b) => parseDate(b.updatedAt) - parseDate(a.updatedAt))
+      .slice(0, 5);
+  }, [novels]);
+
+  const newSeries = useMemo(() => {
+    return [...novels]
+      .sort((a, b) => parseDate(b.createdAt) - parseDate(a.createdAt))
+      .slice(0, 4);
+  }, [novels]);
+
+  const latestUpdates = useMemo(() => {
+    return [...novels]
+      .sort((a, b) => parseDate(b.updatedAt) - parseDate(a.updatedAt))
+      .slice(0, 5);
+  }, [novels]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -51,7 +102,7 @@ export default function Home() {
               </Button>
               {isAdmin && (
                 <Button variant="outline" asChild>
-                  <Link href="/admin?tab=upload">Upload translation</Link>
+                  <Link href="/admin">Upload translation</Link>
                 </Button>
               )}
             </div>
@@ -64,7 +115,7 @@ export default function Home() {
             </div>
             <div className="grid gap-4 text-sm text-muted-foreground sm:grid-cols-3">
               <div>
-                <p className="text-2xl font-semibold text-foreground">180+</p>
+                <p className="text-2xl font-semibold text-foreground">{novels.length}</p>
                 <p>Series updated</p>
               </div>
               <div>
@@ -84,18 +135,39 @@ export default function Home() {
             <CardContent className="space-y-4">
               {latestUpdates.map((update) => (
                 <div
-                  key={update.slug}
+                  key={update.id}
                   className="flex items-start justify-between gap-4 rounded-lg border border-border/40 px-4 py-3"
                 >
                   <div>
-                    <p className="font-medium">{update.title}</p>
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-9 shrink-0 overflow-hidden rounded-md border border-border/50 bg-card/60">
+                        {update.coverUrl ? (
+                          <Image
+                            src={resolveAssetUrl(update.coverUrl)}
+                            alt={update.title}
+                            width={36}
+                            height={48}
+                            className="h-full w-full object-cover"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs font-semibold">
+                            {update.title.charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                      <p className="font-medium">{update.title}</p>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Chapter {update.chapter} · {update.team}
+                      Updated {update.updatedAt ? new Date(update.updatedAt).toLocaleDateString() : ""}
                     </p>
                   </div>
-                  <Badge variant="outline">{update.time}</Badge>
+                  <Badge variant="outline">{update.status}</Badge>
                 </div>
               ))}
+              {notice && (
+                <p className="text-xs text-amber-200">{notice}</p>
+              )}
               <Button variant="secondary" className="w-full" asChild>
                 <Link href="/library">View all updates</Link>
               </Button>
@@ -116,13 +188,29 @@ export default function Home() {
                   className="flex items-center justify-between rounded-lg border border-border/40 px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
+                    <div className="h-10 w-8 shrink-0 overflow-hidden rounded-md border border-border/50 bg-card/60">
+                      {novel.coverUrl ? (
+                        <Image
+                          src={resolveAssetUrl(novel.coverUrl)}
+                          alt={novel.title}
+                          width={32}
+                          height={40}
+                          className="h-full w-full object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs font-semibold">
+                          {novel.title.charAt(0)}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-sm">
                       {index + 1}
                     </div>
                     <div>
                       <p className="font-medium">{novel.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {novel.team} · {novel.follows} follows
+                        Updated {novel.updatedAt ? new Date(novel.updatedAt).toLocaleDateString() : ""}
                       </p>
                     </div>
                   </div>
@@ -136,11 +224,23 @@ export default function Home() {
               <CardTitle>Continue reading</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
-              <p className="text-base font-semibold text-foreground">Ashen Crown</p>
-              <p>Last read: Chapter 63 · The Crown&apos;s Interpreter</p>
-              <Button className="w-full" asChild>
-                <Link href="/novels/ashen-crown">Resume</Link>
-              </Button>
+              {recentRead ? (
+                <>
+                  <p className="text-base font-semibold text-foreground">{recentRead.novelTitle}</p>
+                  <p>Last read: {recentRead.chapterTitle}</p>
+                  <Button className="w-full" asChild>
+                    <Link href={`/novels/${recentRead.novelSlug}`}>Resume</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-base font-semibold text-foreground">No recent reads</p>
+                  <p>Start a series to keep your progress here.</p>
+                  <Button className="w-full" asChild>
+                    <Link href="/library">Browse series</Link>
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </section>
@@ -156,14 +256,32 @@ export default function Home() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>{novel.title}</CardTitle>
-                    <Badge variant="outline">{novel.origin}</Badge>
+                    <Badge variant="outline">{novel.status}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {novel.altTitle} · {novel.team}
+                    {novel.author}
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm text-muted-foreground">
-                  <p>{novel.synopsis}</p>
+                  <div className="flex items-start gap-3">
+                    <div className="h-20 w-14 shrink-0 overflow-hidden rounded-md border border-border/50 bg-card/60">
+                      {novel.coverUrl ? (
+                        <Image
+                          src={resolveAssetUrl(novel.coverUrl)}
+                          alt={novel.title}
+                          width={56}
+                          height={80}
+                          className="h-full w-full object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-sm font-semibold">
+                          {novel.title.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                    <p className="flex-1">{novel.summary ?? ""}</p>
+                  </div>
                   <Button className="w-full" asChild>
                     <Link href={`/novels/${novel.slug}`}>Read series</Link>
                   </Button>

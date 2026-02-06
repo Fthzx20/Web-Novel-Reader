@@ -109,6 +109,30 @@ func RunMigrations(db *sql.DB) error {
 			body TEXT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS release_queue (
+			id SERIAL PRIMARY KEY,
+			novel_id INTEGER NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
+			chapter_number INTEGER NOT NULL,
+			title TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'Queued',
+			eta TEXT NOT NULL DEFAULT '',
+			notes TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL,
+			updated_at TIMESTAMPTZ NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS moderation_reports (
+			id SERIAL PRIMARY KEY,
+			novel_id INTEGER REFERENCES novels(id) ON DELETE SET NULL,
+			novel_title TEXT NOT NULL DEFAULT '',
+			note TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS illustrations (
+			id SERIAL PRIMARY KEY,
+			url TEXT NOT NULL,
+			original_name TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL
+		)`,
 		`CREATE INDEX IF NOT EXISTS reading_history_user_id_idx ON reading_history(user_id)`,
 		`CREATE INDEX IF NOT EXISTS chapters_novel_id_idx ON chapters(novel_id)`,
 		`CREATE INDEX IF NOT EXISTS comments_chapter_id_idx ON comments(chapter_id)`,
@@ -116,6 +140,10 @@ func RunMigrations(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS follows_user_id_idx ON follows(user_id)`,
 		`CREATE INDEX IF NOT EXISTS bookmarks_user_id_idx ON bookmarks(user_id)`,
 		`CREATE INDEX IF NOT EXISTS announcements_created_at_idx ON announcements(created_at)`,
+		`CREATE INDEX IF NOT EXISTS release_queue_created_at_idx ON release_queue(created_at)`,
+		`CREATE INDEX IF NOT EXISTS release_queue_novel_id_idx ON release_queue(novel_id)`,
+		`CREATE INDEX IF NOT EXISTS moderation_reports_created_at_idx ON moderation_reports(created_at)`,
+		`CREATE INDEX IF NOT EXISTS illustrations_created_at_idx ON illustrations(created_at)`,
 	}
 
 	for i, stmt := range statements {

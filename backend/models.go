@@ -97,3 +97,31 @@ type Announcement struct {
 	Body      string    `json:"body"`
 	CreatedAt time.Time `json:"createdAt"`
 }
+
+type ReleaseQueueItem struct {
+	ID            int       `json:"id"`
+	NovelID       int       `json:"novelId"`
+	NovelTitle    string    `json:"novelTitle"`
+	ChapterNumber int       `json:"chapterNumber"`
+	Title         string    `json:"title"`
+	Status        string    `json:"status"`
+	Eta           string    `json:"eta"`
+	Notes         string    `json:"notes"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+type ModerationReport struct {
+	ID         int       `json:"id"`
+	NovelID    int       `json:"novelId"`
+	NovelTitle string    `json:"novelTitle"`
+	Note       string    `json:"note"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type Illustration struct {
+	ID           int       `json:"id"`
+	URL          string    `json:"url"`
+	OriginalName string    `json:"originalName"`
+	CreatedAt    time.Time `json:"createdAt"`
+}

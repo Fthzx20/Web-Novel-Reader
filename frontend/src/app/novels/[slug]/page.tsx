@@ -207,9 +207,9 @@ export default function NovelPage() {
       <main className="mx-auto w-full max-w-6xl px-6 py-16">
         <section className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr]">
           <div className="space-y-6">
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
               <div
-                className="flex h-40 w-28 items-center justify-center rounded-2xl border border-border/50 bg-card/60 text-3xl font-semibold"
+                className="flex h-80 w-56 items-center justify-center rounded-2xl border border-border/50 bg-card/60 text-3xl font-semibold sm:h-96 sm:w-64"
               >
                 {coverUrl ? (
                   <img

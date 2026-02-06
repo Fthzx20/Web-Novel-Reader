@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, BookmarkCheck } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/site-footer";
@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   fetchChaptersByNovel,
   fetchNovel,
+  deleteChapterAdmin,
+  deleteNovelAdmin,
   updateChapterAdmin,
   updateNovelAdmin,
   uploadNovelCover,
@@ -33,6 +35,7 @@ export default function EditNovelPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [checked, setChecked] = useState(false);
   const params = useParams();
+  const router = useRouter();
   const novelId = Number(Array.isArray(params.id) ? params.id[0] : params.id);
   const [novel, setNovel] = useState<AdminNovel | null>(null);
   const [status, setStatus] = useState("Ongoing");
@@ -219,6 +222,29 @@ export default function EditNovelPage() {
                 >
                   {status === "Hiatus" ? "Resume" : "Set hiatus"}
                 </Button>
+                <Button
+                  variant="outline"
+                  className="text-red-500 hover:text-red-600"
+                  onClick={async () => {
+                    if (!novelId) {
+                      return;
+                    }
+                    const confirmed = window.confirm(
+                      "Delete this project? This will remove the novel and all chapters."
+                    );
+                    if (!confirmed) {
+                      return;
+                    }
+                    try {
+                      await deleteNovelAdmin(novelId);
+                      router.push("/admin");
+                    } catch (err) {
+                      setNotice(err instanceof Error ? err.message : "Delete failed.");
+                    }
+                  }}
+                >
+                  Delete project
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -276,6 +302,27 @@ export default function EditNovelPage() {
                     disabled={index === chapters.length - 1}
                   >
                     <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-500 hover:text-red-600"
+                    onClick={async () => {
+                      const confirmed = window.confirm("Delete this chapter?");
+                      if (!confirmed) {
+                        return;
+                      }
+                      try {
+                        await deleteChapterAdmin(chapter.id);
+                        setChapters((current) =>
+                          current.filter((entry) => entry.id !== chapter.id)
+                        );
+                      } catch (err) {
+                        setNotice(err instanceof Error ? err.message : "Delete failed.");
+                      }
+                    }}
+                  >
+                    Delete
                   </Button>
                 </div>
               </div>

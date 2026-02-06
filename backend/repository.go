@@ -33,4 +33,12 @@ type Repository interface {
 	CreateAnnouncement(input AnnouncementInput) (*Announcement, error)
 	UpdateAnnouncement(id int, input AnnouncementInput) (*Announcement, error)
 	DeleteAnnouncement(id int) error
+	ListReleaseQueue() ([]*ReleaseQueueItem, error)
+	CreateReleaseQueue(input ReleaseQueueInput) (*ReleaseQueueItem, error)
+	UpdateReleaseQueueStatus(id int, status string) (*ReleaseQueueItem, error)
+	DeleteReleaseQueue(id int) error
+	ListModerationReports() ([]*ModerationReport, error)
+	CreateModerationReport(input ModerationReportInput) (*ModerationReport, error)
+	DeleteModerationReport(id int) error
+	CreateIllustration(input IllustrationInput) (*Illustration, error)
 }

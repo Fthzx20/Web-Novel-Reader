@@ -6,20 +6,24 @@ import { useEffect, useState } from "react";
 import { BookOpenText, Crown, Flame, Menu, User, X, History } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { clearSession, loadSession } from "@/lib/auth";
+import { clearSession, loadSession, type AuthSession } from "@/lib/auth";
 import { fetchSiteSettings } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/utils";
 
 export function SiteNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [session, setSession] = useState(() => loadSession());
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [siteTitle, setSiteTitle] = useState("Malaz Translation");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const resolvedLogoUrl = logoUrl ? resolveAssetUrl(logoUrl) : null;
   const isSignedIn = Boolean(session);
   const displayName = session?.user.name ?? "Profile";
   const isAdmin = session?.user.role === "admin";
+
+  useEffect(() => {
+    setSession(loadSession());
+  }, []);
 
   useEffect(() => {
     fetchSiteSettings()

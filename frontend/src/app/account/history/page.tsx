@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { fetchReadingHistory } from "@/lib/api";
-import { clearSession, loadSession } from "@/lib/auth";
+import { clearSession, loadSession, type AuthSession } from "@/lib/auth";
 import { SiteNav } from "@/components/site/site-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,23 +20,43 @@ type HistoryItem = {
 };
 
 export default function ReadingHistoryPage() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [checked, setChecked] = useState(false);
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const session = loadSession();
-    if (!session) {
+    const loaded = loadSession();
+    setSession(loaded);
+    setChecked(true);
+    if (!loaded) {
       setLoading(false);
       return;
     }
-    fetchReadingHistory(session.token)
+    fetchReadingHistory(loaded.token)
       .then((data) => setItems(data))
       .catch(() => setError("Unable to load history."))
       .finally(() => setLoading(false));
   }, []);
 
-  const session = loadSession();
+  if (!checked) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <SiteNav />
+        <div className="mx-auto flex min-h-screen w-full max-w-3xl items-center px-6 py-16">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>Reading history</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Loading session...
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return (

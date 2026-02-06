@@ -88,6 +88,30 @@ type AnnouncementInput struct {
 	Body  string `json:"body"`
 }
 
+type ReleaseQueueInput struct {
+	NovelID       int    `json:"novelId"`
+	ChapterNumber int    `json:"chapterNumber"`
+	Title         string `json:"title"`
+	Status        string `json:"status"`
+	Eta           string `json:"eta"`
+	Notes         string `json:"notes"`
+}
+
+type ReleaseQueueStatusInput struct {
+	Status string `json:"status"`
+}
+
+type ModerationReportInput struct {
+	NovelID    int    `json:"novelId"`
+	NovelTitle string `json:"novelTitle"`
+	Note       string `json:"note"`
+}
+
+type IllustrationInput struct {
+	URL          string `json:"url"`
+	OriginalName string `json:"originalName"`
+}
+
 func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -277,6 +301,28 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 		c.JSON(http.StatusOK, gin.H{"url": url})
 	})
 
+	adminAuthed.POST("/uploads/illustration", func(c *gin.Context) {
+		file, err := c.FormFile("file")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+			return
+		}
+		url, err := saveUploadedFile(file, "illustration", c)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		_, err = repo.CreateIllustration(IllustrationInput{
+			URL:          url,
+			OriginalName: file.Filename,
+		})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"url": url})
+	})
+
 	adminAuthed.POST("/announcements", func(c *gin.Context) {
 		var input AnnouncementInput
 		if err := c.ShouldBindJSON(&input); err != nil {
@@ -293,6 +339,97 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 			return
 		}
 		c.JSON(http.StatusCreated, announcement)
+	})
+
+	adminAuthed.GET("/release-queue", func(c *gin.Context) {
+		items, err := repo.ListReleaseQueue()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, items)
+	})
+
+	adminAuthed.POST("/release-queue", func(c *gin.Context) {
+		var input ReleaseQueueInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if input.NovelID <= 0 || input.ChapterNumber <= 0 || strings.TrimSpace(input.Title) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "novelId, chapterNumber, and title are required"})
+			return
+		}
+		item, err := repo.CreateReleaseQueue(input)
+		if err != nil {
+			respondNotFound(c, err)
+			return
+		}
+		c.JSON(http.StatusCreated, item)
+	})
+
+	adminAuthed.PUT("/release-queue/:id", func(c *gin.Context) {
+		id := parseID(c.Param("id"))
+		var input ReleaseQueueStatusInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if strings.TrimSpace(input.Status) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "status is required"})
+			return
+		}
+		item, err := repo.UpdateReleaseQueueStatus(id, input.Status)
+		if err != nil {
+			respondNotFound(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, item)
+	})
+
+	adminAuthed.DELETE("/release-queue/:id", func(c *gin.Context) {
+		id := parseID(c.Param("id"))
+		if err := repo.DeleteReleaseQueue(id); err != nil {
+			respondNotFound(c, err)
+			return
+		}
+		c.Status(http.StatusNoContent)
+	})
+
+	adminAuthed.GET("/reports", func(c *gin.Context) {
+		items, err := repo.ListModerationReports()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, items)
+	})
+
+	adminAuthed.POST("/reports", func(c *gin.Context) {
+		var input ModerationReportInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if strings.TrimSpace(input.Note) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "note is required"})
+			return
+		}
+		item, err := repo.CreateModerationReport(input)
+		if err != nil {
+			respondNotFound(c, err)
+			return
+		}
+		c.JSON(http.StatusCreated, item)
+	})
+
+	adminAuthed.DELETE("/reports/:id", func(c *gin.Context) {
+		id := parseID(c.Param("id"))
+		if err := repo.DeleteModerationReport(id); err != nil {
+			respondNotFound(c, err)
+			return
+		}
+		c.Status(http.StatusNoContent)
 	})
 
 	adminAuthed.PUT("/announcements/:id", func(c *gin.Context) {

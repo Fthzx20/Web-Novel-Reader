@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileUp, Minus, Plus, ShieldCheck } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/site-footer";
@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { createNovelAdmin, uploadNovelCover } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { createNovelAdmin, uploadIllustration, uploadNovelCover } from "@/lib/api";
+import { loadSession, type AuthSession } from "@/lib/auth";
 
 type Draft = {
   id: number;
@@ -55,8 +55,9 @@ const revokeIfObjectUrl = (value: string | null) => {
 };
 
 export default function NewNovelPage() {
-  const [session] = useState(() => loadSession());
+  const [session, setSession] = useState<AuthSession | null>(null);
   const isAdmin = session?.user.role === "admin";
+  const [checked, setChecked] = useState(false);
   const [form, setForm] = useState({
     title: "",
     altTitle: "",
@@ -75,6 +76,7 @@ export default function NewNovelPage() {
   const [chapterNumber, setChapterNumber] = useState(1);
   const [chapterTitle, setChapterTitle] = useState("");
   const [chapterText, setChapterText] = useState("");
+  const chapterTextRef = useRef<HTMLTextAreaElement | null>(null);
   const [illustrationName, setIllustrationName] = useState<string | null>(null);
   const [illustrationPreview, setIllustrationPreview] = useState<string | null>(null);
   const [illustrationUrl, setIllustrationUrl] = useState("");
@@ -83,6 +85,11 @@ export default function NewNovelPage() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [notice, setNotice] = useState("");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSession(loadSession());
+    setChecked(true);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -144,7 +151,7 @@ export default function NewNovelPage() {
     publishNote,
   ]);
 
-  if (!isAdmin) {
+  if (checked && !isAdmin) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <SiteNav />
@@ -203,6 +210,31 @@ export default function NewNovelPage() {
     localStorage.removeItem(storageKey);
     setLastSavedAt(null);
     setNotice("Saved workstation progress cleared.");
+  };
+
+  const insertChapterToken = (value: string, position: "cursor" | "top" | "bottom") => {
+    if (position === "top") {
+      setChapterText((current) => `${value}\n\n${current}`.trim());
+      return;
+    }
+    if (position === "bottom") {
+      setChapterText((current) => `${current}\n\n${value}`.trim());
+      return;
+    }
+    const textarea = chapterTextRef.current;
+    if (!textarea) {
+      setChapterText((current) => `${current}${value}`);
+      return;
+    }
+    const start = textarea.selectionStart ?? chapterText.length;
+    const end = textarea.selectionEnd ?? chapterText.length;
+    const next = `${chapterText.slice(0, start)}${value}${chapterText.slice(end)}`;
+    setChapterText(next);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursor = start + value.length;
+      textarea.setSelectionRange(cursor, cursor);
+    });
   };
 
   const coverDisplayUrl = coverPreview || coverUrl;
@@ -264,7 +296,7 @@ export default function NewNovelPage() {
                     onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
                   />
                   <Input
-                    placeholder="Alt title"
+                    placeholder="Origin ID"
                     value={form.altTitle}
                     onChange={(event) => setForm((current) => ({ ...current, altTitle: event.target.value }))}
                   />
@@ -378,6 +410,7 @@ export default function NewNovelPage() {
                   value={chapterText}
                   onChange={(event) => setChapterText(event.target.value)}
                   className="min-h-60"
+                  ref={chapterTextRef}
                 />
               </div>
 
@@ -419,7 +452,7 @@ export default function NewNovelPage() {
                   <Input
                     type="file"
                     accept="image/*"
-                    onChange={(event) => {
+                    onChange={async (event) => {
                       const file = event.target.files?.[0];
                       if (!file) {
                         return;
@@ -428,13 +461,59 @@ export default function NewNovelPage() {
                       const preview = URL.createObjectURL(file);
                       setIllustrationPreview(preview);
                       setIllustrationName(file.name);
+                      try {
+                        const uploadedUrl = await uploadIllustration(file);
+                        setIllustrationUrl(uploadedUrl);
+                        setNotice("Illustration uploaded.");
+                      } catch (err) {
+                        setNotice(err instanceof Error ? err.message : "Illustration upload failed.");
+                      }
                     }}
                   />
-                  <Input
-                    placeholder="Illustration URL"
-                    value={illustrationUrl}
-                    onChange={(event) => setIllustrationUrl(event.target.value)}
-                  />
+                  <div className="flex items-center rounded-md border border-dashed border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    Upload an illustration to generate the token URL.
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (!illustrationUrl.trim()) {
+                        setNotice("Upload an illustration first.");
+                        return;
+                      }
+                      insertChapterToken(`[[img:${illustrationUrl.trim()}]]`, "cursor");
+                    }}
+                  >
+                    Insert at cursor
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (!illustrationUrl.trim()) {
+                        setNotice("Upload an illustration first.");
+                        return;
+                      }
+                      insertChapterToken(`[[img:${illustrationUrl.trim()}]]`, "top");
+                    }}
+                  >
+                    Insert at top
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (!illustrationUrl.trim()) {
+                        setNotice("Upload an illustration first.");
+                        return;
+                      }
+                      insertChapterToken(`[[img:${illustrationUrl.trim()}]]`, "bottom");
+                    }}
+                  >
+                    Insert at bottom
+                  </Button>
                 </div>
                 <Textarea
                   placeholder="Illustration notes"

@@ -780,3 +780,251 @@ func (r *AppRepository) DeleteAnnouncement(id int) error {
 	}
 	return nil
 }
+
+func (r *AppRepository) ListReleaseQueue() ([]*ReleaseQueueItem, error) {
+	rows, err := r.db.Query(
+		`SELECT rq.id, rq.novel_id, n.title, rq.chapter_number, rq.title, rq.status, rq.eta, rq.notes, rq.created_at, rq.updated_at
+		 FROM release_queue rq
+		 JOIN novels n ON n.id = rq.novel_id
+		 ORDER BY rq.created_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]*ReleaseQueueItem, 0)
+	for rows.Next() {
+		var item ReleaseQueueItem
+		if err := rows.Scan(
+			&item.ID,
+			&item.NovelID,
+			&item.NovelTitle,
+			&item.ChapterNumber,
+			&item.Title,
+			&item.Status,
+			&item.Eta,
+			&item.Notes,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		); err != nil {
+			continue
+		}
+		items = append(items, &item)
+	}
+	return items, nil
+}
+
+func (r *AppRepository) CreateReleaseQueue(input ReleaseQueueInput) (*ReleaseQueueItem, error) {
+	if input.NovelID <= 0 {
+		return nil, errNotFound
+	}
+	if _, err := r.GetNovel(input.NovelID); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(input.Title) == "" || input.ChapterNumber <= 0 {
+		return nil, errors.New("title and chapterNumber required")
+	}
+	status := strings.TrimSpace(input.Status)
+	if status == "" {
+		status = "Queued"
+	}
+	item := &ReleaseQueueItem{
+		NovelID:       input.NovelID,
+		ChapterNumber: input.ChapterNumber,
+		Title:         strings.TrimSpace(input.Title),
+		Status:        status,
+		Eta:           strings.TrimSpace(input.Eta),
+		Notes:         strings.TrimSpace(input.Notes),
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	if err := r.db.QueryRow(
+		`INSERT INTO release_queue (novel_id, chapter_number, title, status, eta, notes, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 RETURNING id`,
+		item.NovelID,
+		item.ChapterNumber,
+		item.Title,
+		item.Status,
+		item.Eta,
+		item.Notes,
+		item.CreatedAt,
+		item.UpdatedAt,
+	).Scan(&item.ID); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.QueryRow(
+		`SELECT title FROM novels WHERE id = $1`,
+		item.NovelID,
+	).Scan(&item.NovelTitle); err != nil {
+		return nil, err
+	}
+
+	return item, nil
+}
+
+func (r *AppRepository) UpdateReleaseQueueStatus(id int, status string) (*ReleaseQueueItem, error) {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return nil, errors.New("status required")
+	}
+	item := &ReleaseQueueItem{}
+	item.Status = status
+	item.UpdatedAt = time.Now()
+
+	result, err := r.db.Exec(
+		`UPDATE release_queue SET status = $1, updated_at = $2 WHERE id = $3`,
+		item.Status,
+		item.UpdatedAt,
+		id,
+	)
+	if err != nil {
+		return nil, err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return nil, errNotFound
+	}
+
+	row := r.db.QueryRow(
+		`SELECT rq.id, rq.novel_id, n.title, rq.chapter_number, rq.title, rq.status, rq.eta, rq.notes, rq.created_at, rq.updated_at
+		 FROM release_queue rq
+		 JOIN novels n ON n.id = rq.novel_id
+		 WHERE rq.id = $1`,
+		id,
+	)
+	if err := row.Scan(
+		&item.ID,
+		&item.NovelID,
+		&item.NovelTitle,
+		&item.ChapterNumber,
+		&item.Title,
+		&item.Status,
+		&item.Eta,
+		&item.Notes,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+func (r *AppRepository) DeleteReleaseQueue(id int) error {
+	result, err := r.db.Exec("DELETE FROM release_queue WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return errNotFound
+	}
+	return nil
+}
+
+func (r *AppRepository) ListModerationReports() ([]*ModerationReport, error) {
+	rows, err := r.db.Query(
+		`SELECT r.id,
+		 COALESCE(r.novel_id, 0),
+		 COALESCE(n.title, r.novel_title, ''),
+		 r.note,
+		 r.created_at
+		 FROM moderation_reports r
+		 LEFT JOIN novels n ON n.id = r.novel_id
+		 ORDER BY r.created_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]*ModerationReport, 0)
+	for rows.Next() {
+		var item ModerationReport
+		if err := rows.Scan(
+			&item.ID,
+			&item.NovelID,
+			&item.NovelTitle,
+			&item.Note,
+			&item.CreatedAt,
+		); err != nil {
+			continue
+		}
+		items = append(items, &item)
+	}
+	return items, nil
+}
+
+func (r *AppRepository) CreateModerationReport(input ModerationReportInput) (*ModerationReport, error) {
+	if strings.TrimSpace(input.Note) == "" {
+		return nil, errors.New("note required")
+	}
+	createdAt := time.Now()
+	item := &ModerationReport{
+		NovelID:    input.NovelID,
+		NovelTitle: strings.TrimSpace(input.NovelTitle),
+		Note:       strings.TrimSpace(input.Note),
+		CreatedAt:  createdAt,
+	}
+	var novelID sql.NullInt64
+	if input.NovelID > 0 {
+		novelID = sql.NullInt64{Int64: int64(input.NovelID), Valid: true}
+	}
+
+	err := r.db.QueryRow(
+		`INSERT INTO moderation_reports (novel_id, novel_title, note, created_at)
+		 VALUES ($1, $2, $3, $4)
+		 RETURNING id`,
+		novelID,
+		item.NovelTitle,
+		item.Note,
+		item.CreatedAt,
+	).Scan(&item.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if item.NovelID == 0 && novelID.Valid {
+		item.NovelID = int(novelID.Int64)
+	}
+	return item, nil
+}
+
+func (r *AppRepository) DeleteModerationReport(id int) error {
+	result, err := r.db.Exec("DELETE FROM moderation_reports WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return errNotFound
+	}
+	return nil
+}
+
+func (r *AppRepository) CreateIllustration(input IllustrationInput) (*Illustration, error) {
+	now := time.Now()
+	illustration := &Illustration{
+		URL:          strings.TrimSpace(input.URL),
+		OriginalName: strings.TrimSpace(input.OriginalName),
+		CreatedAt:    now,
+	}
+	if illustration.URL == "" || illustration.OriginalName == "" {
+		return nil, errors.New("invalid illustration input")
+	}
+	err := r.db.QueryRow(
+		`INSERT INTO illustrations (url, original_name, created_at)
+		 VALUES ($1, $2, $3)
+		 RETURNING id`,
+		illustration.URL,
+		illustration.OriginalName,
+		illustration.CreatedAt,
+	).Scan(&illustration.ID)
+	if err != nil {
+		return nil, err
+	}
+	return illustration, nil
+}

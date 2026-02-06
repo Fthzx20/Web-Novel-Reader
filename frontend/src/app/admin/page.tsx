@@ -2,12 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BookOpenText,
   FileUp,
   LayoutGrid,
+  Minus,
   MessageSquare,
+  Plus,
   Star,
   Settings,
   Gauge,
@@ -22,37 +24,32 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { teamSpotlight } from "@/lib/sample";
-import { loadSession } from "@/lib/auth";
-import { UploadNovelPanel } from "@/components/admin/upload-novel-panel";
+import { loadSession, type AuthSession } from "@/lib/auth";
 import { useSearchParams } from "next/navigation";
 import {
   createChapterAdmin,
+  createReleaseQueue,
+  deleteNovelAdmin,
+  deleteModerationReport,
   fetchNovelsAdmin,
+  fetchModerationReports,
+  fetchReleaseQueue,
+  uploadIllustration,
   type AdminNovel,
+  type ModerationReport,
+  type ReleaseQueueItem,
+  updateReleaseQueueStatus,
 } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/utils";
 
-type QueueItem = {
-  id: number;
-  novel: string;
-  chapter: string;
-  title: string;
-  status: "Queued" | "Released" | "Delayed";
-  eta: string;
-};
-
-type ReportItem = {
-  id: number;
-  novel: string;
-  note: string;
-  time: string;
-};
+type QueueItem = ReleaseQueueItem;
+type ReportItem = ModerationReport;
 
 export default function AdminPage() {
   const searchParams = useSearchParams();
-  const [session] = useState(() => loadSession());
+  const [session, setSession] = useState<AuthSession | null>(null);
   const isAdmin = session?.user.role === "admin";
-  const checked = true;
+  const [checked, setChecked] = useState(false);
   const sections = [
     {
       label: "Dashboard",
@@ -77,44 +74,8 @@ export default function AdminPage() {
     };
     return tab && map[tab] ? map[tab] : "Dashboard";
   });
-  const [queue, setQueue] = useState<QueueItem[]>([
-    {
-      id: 1,
-      novel: "Ashen Crown",
-      chapter: "65",
-      title: "The Quiet Annex",
-      status: "Queued",
-      eta: "Tonight",
-    },
-    {
-      id: 2,
-      novel: "Neon Embassy",
-      chapter: "44",
-      title: "Static Echo",
-      status: "Delayed",
-      eta: "Tomorrow",
-    },
-  ]);
-  const [reports, setReports] = useState<ReportItem[]>([
-    {
-      id: 11,
-      novel: "Winter Script",
-      note: "Possible terminology mismatch in Chapter 90.",
-      time: "2h ago",
-    },
-    {
-      id: 12,
-      novel: "Caravan of Mirrors",
-      note: "Reader asked for glossary update.",
-      time: "5h ago",
-    },
-  ]);
-  const [form, setForm] = useState({
-    novel: "",
-    chapter: "",
-    title: "",
-    notes: "",
-  });
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [reports, setReports] = useState<ReportItem[]>([]);
   const [novels, setNovels] = useState<AdminNovel[]>([]);
   const [chapterForm, setChapterForm] = useState({
     novelId: "",
@@ -122,8 +83,20 @@ export default function AdminPage() {
     title: "",
     content: "",
   });
+  const [volumeNumber, setVolumeNumber] = useState(1);
+  const [illustrationName, setIllustrationName] = useState<string | null>(null);
+  const [illustrationPreview, setIllustrationPreview] = useState<string | null>(null);
+  const [illustrationUrl, setIllustrationUrl] = useState("");
+  const chapterContentRef = useRef<HTMLTextAreaElement | null>(null);
   const [chapterNotice, setChapterNotice] = useState("");
   const [libraryNotice, setLibraryNotice] = useState("");
+  const [queueNotice, setQueueNotice] = useState("");
+  const [reportNotice, setReportNotice] = useState("");
+
+  useEffect(() => {
+    setSession(loadSession());
+    setChecked(true);
+  }, []);
 
   useEffect(() => {
     fetchNovelsAdmin()
@@ -132,6 +105,19 @@ export default function AdminPage() {
       })
       .catch((err) => {
         setLibraryNotice(err instanceof Error ? err.message : "Failed to load projects.");
+      });
+  }, []);
+
+  useEffect(() => {
+    fetchReleaseQueue()
+      .then((data) => setQueue(data))
+      .catch((err) => {
+        setQueueNotice(err instanceof Error ? err.message : "Failed to load release queue.");
+      });
+    fetchModerationReports()
+      .then((data) => setReports(data))
+      .catch((err) => {
+        setReportNotice(err instanceof Error ? err.message : "Failed to load reports.");
       });
   }, []);
 
@@ -158,6 +144,40 @@ export default function AdminPage() {
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+  };
+
+  const insertChapterToken = (value: string, position: "cursor" | "top" | "bottom") => {
+    if (position === "top") {
+      setChapterForm((current) => ({
+        ...current,
+        content: `${value}\n\n${current.content}`.trim(),
+      }));
+      return;
+    }
+    if (position === "bottom") {
+      setChapterForm((current) => ({
+        ...current,
+        content: `${current.content}\n\n${value}`.trim(),
+      }));
+      return;
+    }
+    const textarea = chapterContentRef.current;
+    if (!textarea) {
+      setChapterForm((current) => ({
+        ...current,
+        content: `${current.content}${value}`,
+      }));
+      return;
+    }
+    const start = textarea.selectionStart ?? chapterForm.content.length;
+    const end = textarea.selectionEnd ?? chapterForm.content.length;
+    const next = `${chapterForm.content.slice(0, start)}${value}${chapterForm.content.slice(end)}`;
+    setChapterForm((current) => ({ ...current, content: next }));
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursor = start + value.length;
+      textarea.setSelectionRange(cursor, cursor);
+    });
   };
 
   if (checked && !isAdmin) {
@@ -270,10 +290,10 @@ export default function AdminPage() {
                         >
                           <div>
                             <p className="font-medium text-foreground">
-                              {item.novel} · Chapter {item.chapter}
+                              {item.novelTitle} · Chapter {item.chapterNumber}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {item.title} · ETA {item.eta}
+                              {item.title} · ETA {item.eta || "Pending"}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -283,21 +303,29 @@ export default function AdminPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() =>
-                                setQueue((current) =>
-                                  current.map((entry) =>
-                                    entry.id === item.id
-                                      ? { ...entry, status: "Released" }
-                                      : entry
-                                  )
-                                )
-                              }
+                              onClick={async () => {
+                                try {
+                                  const updated = await updateReleaseQueueStatus(item.id, "Released");
+                                  setQueue((current) =>
+                                    current.map((entry) =>
+                                      entry.id === item.id ? updated : entry
+                                    )
+                                  );
+                                } catch (err) {
+                                  setQueueNotice(
+                                    err instanceof Error ? err.message : "Failed to update queue."
+                                  );
+                                }
+                              }}
                             >
                               Mark released
                             </Button>
                           </div>
                         </div>
                       ))}
+                      {queueNotice && (
+                        <p className="text-xs text-amber-200">{queueNotice}</p>
+                      )}
                     </CardContent>
                   </Card>
                   <Card>
@@ -354,29 +382,102 @@ export default function AdminPage() {
                           ))}
                         </select>
                       </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <Input
-                          placeholder="Chapter number"
-                          value={chapterForm.number}
-                          onChange={(event) =>
-                            setChapterForm((current) => ({
-                              ...current,
-                              number: event.target.value,
-                            }))
-                          }
-                        />
-                        <Input
-                          placeholder="Chapter title"
-                          value={chapterForm.title}
-                          onChange={(event) =>
-                            setChapterForm((current) => ({
-                              ...current,
-                              title: event.target.value,
-                            }))
-                          }
-                        />
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground">Volume</p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() =>
+                                setVolumeNumber((current) => Math.max(1, current - 1))
+                              }
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={volumeNumber}
+                              onChange={(event) => {
+                                const next = Number(event.target.value);
+                                setVolumeNumber(Number.isFinite(next) && next > 0 ? next : 1);
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() =>
+                                setVolumeNumber((current) => Math.max(1, current + 1))
+                              }
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground">Chapter</p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                const next = Math.max(1, Number(chapterForm.number || "1") - 1);
+                                setChapterForm((current) => ({
+                                  ...current,
+                                  number: String(next),
+                                }));
+                              }}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min={1}
+                              placeholder="Chapter number"
+                              value={chapterForm.number}
+                              onChange={(event) =>
+                                setChapterForm((current) => ({
+                                  ...current,
+                                  number: event.target.value,
+                                }))
+                              }
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                const next = Math.max(1, Number(chapterForm.number || "0") + 1);
+                                setChapterForm((current) => ({
+                                  ...current,
+                                  number: String(next),
+                                }));
+                              }}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground">Title</p>
+                          <Input
+                            placeholder="Chapter title"
+                            value={chapterForm.title}
+                            onChange={(event) =>
+                              setChapterForm((current) => ({
+                                ...current,
+                                title: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
                       </div>
                       <Textarea
+                        ref={chapterContentRef}
                         placeholder="Chapter content"
                         value={chapterForm.content}
                         onChange={(event) =>
@@ -386,6 +487,98 @@ export default function AdminPage() {
                           }))
                         }
                       />
+                      <div className="space-y-3 rounded-lg border border-border/50 bg-muted/30 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium">Insert illustrations</p>
+                            <p className="text-xs text-muted-foreground">
+                              Upload an image and place the token in your chapter text.
+                            </p>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Volume {volumeNumber}, Chapter {chapterForm.number || "-"}
+                          </div>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-[1fr,auto]">
+                          <div className="space-y-2">
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={async (event) => {
+                                const file = event.target.files?.[0];
+                                if (!file) {
+                                  return;
+                                }
+                                setIllustrationName(file.name);
+                                setIllustrationPreview(null);
+                                setChapterNotice("");
+                                try {
+                                  const uploaded = await uploadIllustration(file);
+                                  setIllustrationUrl(uploaded.url);
+                                  setIllustrationPreview(uploaded.url);
+                                } catch (err) {
+                                  setChapterNotice(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to upload illustration."
+                                  );
+                                }
+                              }}
+                            />
+                            {illustrationName && (
+                              <p className="text-xs text-muted-foreground">
+                                Uploaded: {illustrationName}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={!illustrationUrl}
+                              onClick={() =>
+                                insertChapterToken(`[[img:${illustrationUrl}]]`, "cursor")
+                              }
+                            >
+                              Insert at cursor
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={!illustrationUrl}
+                              onClick={() =>
+                                insertChapterToken(`[[img:${illustrationUrl}]]`, "top")
+                              }
+                            >
+                              Insert at top
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={!illustrationUrl}
+                              onClick={() =>
+                                insertChapterToken(`[[img:${illustrationUrl}]]`, "bottom")
+                              }
+                            >
+                              Insert at bottom
+                            </Button>
+                          </div>
+                        </div>
+                        {illustrationPreview && (
+                          <div className="overflow-hidden rounded-lg border border-border/50 bg-background">
+                            <Image
+                              src={resolveAssetUrl(illustrationPreview)}
+                              alt="Illustration preview"
+                              width={720}
+                              height={360}
+                              className="h-auto w-full object-cover"
+                            />
+                          </div>
+                        )}
+                      </div>
                       <Button
                         className="w-full"
                         onClick={async () => {
@@ -401,18 +594,14 @@ export default function AdminPage() {
                               title: chapterForm.title.trim(),
                               content: chapterForm.content.trim(),
                             });
-                            const selectedNovel = novels.find((item) => item.id === novelId);
-                            setQueue((current) => [
-                              {
-                                id: Date.now(),
-                                novel: selectedNovel?.title ?? "",
-                                chapter: String(chapterNumber),
-                                title: chapterForm.title.trim(),
-                                status: "Queued",
-                                eta: "Pending",
-                              },
-                              ...current,
-                            ]);
+                            const created = await createReleaseQueue({
+                              novelId,
+                              chapterNumber,
+                              title: chapterForm.title.trim(),
+                              status: "Queued",
+                              eta: "Pending",
+                            });
+                            setQueue((current) => [created, ...current]);
                             setChapterNotice("Chapter uploaded.");
                             setChapterForm((current) => ({
                               ...current,
@@ -436,6 +625,9 @@ export default function AdminPage() {
                       <CardTitle>Moderation queue</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 text-sm text-muted-foreground">
+                      {reportNotice && (
+                        <p className="text-xs text-amber-200">{reportNotice}</p>
+                      )}
                       {reports.map((report) => (
                         <div
                           key={report.id}
@@ -443,20 +635,27 @@ export default function AdminPage() {
                         >
                           <div>
                             <p className="font-medium text-foreground">
-                              {report.novel}
+                              {report.novelTitle || "General"}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {report.note} · {report.time}
+                              {report.note} · {new Date(report.createdAt).toLocaleString()}
                             </p>
                           </div>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() =>
-                              setReports((current) =>
-                                current.filter((entry) => entry.id !== report.id)
-                              )
-                            }
+                            onClick={async () => {
+                              try {
+                                await deleteModerationReport(report.id);
+                                setReports((current) =>
+                                  current.filter((entry) => entry.id !== report.id)
+                                );
+                              } catch (err) {
+                                setReportNotice(
+                                  err instanceof Error ? err.message : "Failed to resolve report."
+                                );
+                              }
+                            }}
                           >
                             Resolve
                           </Button>
@@ -480,7 +679,14 @@ export default function AdminPage() {
                       <Link href="/admin/novels/new">Open full workstation</Link>
                     </Button>
                   </div>
-                  <UploadNovelPanel />
+                  <Card className="border-dashed border-border/60">
+                    <CardContent className="flex flex-col gap-3 py-6 text-sm text-muted-foreground">
+                      <p className="text-foreground">Profile and cover uploads live in the full workstation.</p>
+                      <Button className="w-fit" asChild>
+                        <Link href="/admin/novels/new">Open full workstation</Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
                 </div>
                 <Separator className="my-10" />
                 <div className="grid gap-6 md:grid-cols-3">
@@ -559,9 +765,35 @@ export default function AdminPage() {
                               : ""}
                           </span>
                         </div>
-                        <Button variant="secondary" asChild>
-                          <Link href={`/admin/novels/${novel.id}/edit`}>Edit project</Link>
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="secondary" asChild>
+                            <Link href={`/admin/novels/${novel.id}/edit`}>Edit project</Link>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="text-red-500 hover:text-red-600"
+                            onClick={async () => {
+                              const confirmed = window.confirm(
+                                "Delete this project? This will remove the novel and all chapters."
+                              );
+                              if (!confirmed) {
+                                return;
+                              }
+                              try {
+                                await deleteNovelAdmin(novel.id);
+                                setNovels((current) =>
+                                  current.filter((entry) => entry.id !== novel.id)
+                                );
+                              } catch (err) {
+                                setLibraryNotice(
+                                  err instanceof Error ? err.message : "Delete failed."
+                                );
+                              }
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -590,174 +822,6 @@ export default function AdminPage() {
                 </Card>
               </>
             )}
-            {activeSection === "Upload" && (
-              <div className="space-y-6">
-                <div className="rounded-xl border border-border/60 bg-card/40 px-4 py-3 text-sm text-muted-foreground">
-                  Add title, metadata, and a cover in one pass.
-                </div>
-                <UploadNovelPanel />
-              </div>
-            )}
-            {activeSection === "Releases" && (
-              <div className="grid gap-6 lg:grid-cols-[1fr,1fr]">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Release queue</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 text-sm text-muted-foreground">
-                    {queue.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/40 px-4 py-3"
-                      >
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {item.novel} · Chapter {item.chapter}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.title} · ETA {item.eta}
-                          </p>
-                        </div>
-                        <Badge variant={statusStyle(item.status)}>
-                          {item.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Upload a chapter</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Input
-                      placeholder="Novel title"
-                      value={form.novel}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          novel: event.target.value,
-                        }))
-                      }
-                    />
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Input
-                        placeholder="Chapter number"
-                        value={form.chapter}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            chapter: event.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        placeholder="Chapter title"
-                        value={form.title}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            title: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <Textarea
-                      placeholder="Translator notes"
-                      value={form.notes}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          notes: event.target.value,
-                        }))
-                      }
-                    />
-                    <Button
-                      className="w-full"
-                      onClick={() => {
-                        if (!form.novel || !form.chapter || !form.title) {
-                          return;
-                        }
-                        setQueue((current) => [
-                          {
-                            id: Date.now(),
-                            novel: form.novel,
-                            chapter: form.chapter,
-                            title: form.title,
-                            status: "Queued",
-                            eta: "Pending",
-                          },
-                          ...current,
-                        ]);
-                        setForm({
-                          novel: "",
-                          chapter: "",
-                          title: "",
-                          notes: "",
-                        });
-                      }}
-                    >
-                      Add to queue
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-            {activeSection === "Projects" && (
-              <div className="grid gap-6 md:grid-cols-2">
-                {novels.map((novel) => (
-                  <Card key={novel.id}>
-                    <CardHeader>
-                      <CardTitle>{novel.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm text-muted-foreground">
-                      <p>{novel.summary ?? ""}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(novel.tags ?? []).map((tag) => (
-                          <Badge key={tag} variant="outline">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{novel.author}</span>
-                        <span>
-                          {novel.updatedAt
-                            ? new Date(novel.updatedAt).toLocaleDateString()
-                            : ""}
-                        </span>
-                      </div>
-                      <Button variant="secondary" asChild>
-                        <Link href={`/admin/novels/${novel.id}/edit`}>Edit project</Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-            {activeSection === "Teams" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Team spotlight</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-3">
-                  {teamSpotlight.map((team) => (
-                    <div
-                      key={team.name}
-                      className="rounded-lg border border-border/40 p-4 text-sm text-muted-foreground"
-                    >
-                      <p className="text-base font-medium text-foreground">
-                        {team.name}
-                      </p>
-                      <p>{team.focus}</p>
-                      <p>
-                        {team.language} · {team.active} active series
-                      </p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
             {activeSection === "Reports" && (
               <Card>
                 <CardHeader>
@@ -771,20 +835,27 @@ export default function AdminPage() {
                     >
                       <div>
                         <p className="font-medium text-foreground">
-                          {report.novel}
+                          {report.novelTitle || "General"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {report.note} · {report.time}
+                          {report.note} · {new Date(report.createdAt).toLocaleString()}
                         </p>
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() =>
-                          setReports((current) =>
-                            current.filter((entry) => entry.id !== report.id)
-                          )
-                        }
+                        onClick={async () => {
+                          try {
+                            await deleteModerationReport(report.id);
+                            setReports((current) =>
+                              current.filter((entry) => entry.id !== report.id)
+                            );
+                          } catch (err) {
+                            setReportNotice(
+                              err instanceof Error ? err.message : "Failed to resolve report."
+                            );
+                          }
+                        }}
                       >
                         Resolve
                       </Button>
