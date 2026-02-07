@@ -37,6 +37,7 @@ export type Chapter = {
   id: number;
   novelId: number;
   number: number;
+  volume: number;
   title: string;
   content: string;
   wordCount: number;
@@ -135,6 +136,15 @@ function adminHeaders() {
   const bearer = session?.user.role === "admin" ? { Authorization: `Bearer ${session.token}` } : {};
   const key = ADMIN_API_KEY ? { "X-API-Key": ADMIN_API_KEY } : {};
   return { ...key, ...bearer };
+}
+
+function moderationHeaders() {
+  if (typeof window === "undefined") {
+    return adminHeaders();
+  }
+  const password = window.sessionStorage.getItem("moderationPassword") ?? "";
+  const moderation = password ? { "X-Moderation-Password": password } : {};
+  return { ...adminHeaders(), ...moderation };
 }
 
 export async function fetchNovels(): Promise<AdminNovel[]> {
@@ -255,7 +265,7 @@ export async function fetchModerationReports(): Promise<ModerationReport[]> {
 export async function fetchAdminUsers(): Promise<AdminUser[]> {
   const response = await fetch(`${API_BASE}/admin/users`, {
     headers: {
-      ...adminHeaders(),
+      ...moderationHeaders(),
     },
     cache: "no-store",
   });
@@ -270,7 +280,7 @@ export async function updateUserRole(id: number, role: string): Promise<AdminUse
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      ...adminHeaders(),
+      ...moderationHeaders(),
     },
     body: JSON.stringify({ role }),
   });
@@ -285,7 +295,7 @@ export async function updateUserStatus(id: number, status: string): Promise<Admi
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      ...adminHeaders(),
+      ...moderationHeaders(),
     },
     body: JSON.stringify({ status }),
   });
@@ -299,11 +309,23 @@ export async function deleteUser(id: number): Promise<void> {
   const response = await fetch(`${API_BASE}/admin/users/${id}`, {
     method: "DELETE",
     headers: {
-      ...adminHeaders(),
+      ...moderationHeaders(),
     },
   });
   if (!response.ok) {
     throw new Error(await getErrorMessage(response, "Failed to delete user"));
+  }
+}
+
+export async function clearUserHistory(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/admin/users/${id}/history`, {
+    method: "DELETE",
+    headers: {
+      ...moderationHeaders(),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to clear history"));
   }
 }
 
@@ -549,6 +571,7 @@ export async function createChapterAdmin(
   novelId: number,
   input: {
     number: number;
+    volume: number;
     title: string;
     content: string;
   }
@@ -593,6 +616,7 @@ export async function updateChapterAdmin(
   chapterId: number,
   input: {
     number: number;
+    volume: number;
     title: string;
     content: string;
   }
@@ -635,6 +659,18 @@ export type SiteSettings = {
   secondaryButton: string;
   accentColor: string;
   highlightLabel: string;
+  facebookUrl: string;
+  discordUrl: string;
+  footerUpdatesLabel: string;
+  footerUpdatesUrl: string;
+  footerSeriesLabel: string;
+  footerSeriesUrl: string;
+  footerAdminLabel: string;
+  footerAdminUrl: string;
+  footerLink4Label: string;
+  footerLink4Url: string;
+  footerLink5Label: string;
+  footerLink5Url: string;
   updatedAt: string;
 };
 
@@ -664,6 +700,18 @@ export async function updateSiteSettings(input: {
   secondaryButton: string;
   accentColor: string;
   highlightLabel: string;
+  facebookUrl: string;
+  discordUrl: string;
+  footerUpdatesLabel: string;
+  footerUpdatesUrl: string;
+  footerSeriesLabel: string;
+  footerSeriesUrl: string;
+  footerAdminLabel: string;
+  footerAdminUrl: string;
+  footerLink4Label: string;
+  footerLink4Url: string;
+  footerLink5Label: string;
+  footerLink5Url: string;
 }): Promise<SiteSettings> {
   const response = await fetch(`${API_BASE}/settings`, {
     method: "PUT",

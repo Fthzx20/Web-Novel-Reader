@@ -195,7 +195,7 @@ func (r *AppRepository) DeleteNovel(id int) error {
 
 func (r *AppRepository) ListChaptersByNovel(novelID int) ([]*Chapter, error) {
 	rows, err := r.db.Query(
-		`SELECT id, novel_id, number, title, content, word_count, created_at, updated_at
+		`SELECT id, novel_id, number, volume, title, content, word_count, created_at, updated_at
 		 FROM chapters
 		 WHERE novel_id = $1
 		 ORDER BY number ASC`,
@@ -213,6 +213,7 @@ func (r *AppRepository) ListChaptersByNovel(novelID int) ([]*Chapter, error) {
 			&chapter.ID,
 			&chapter.NovelID,
 			&chapter.Number,
+			&chapter.Volume,
 			&chapter.Title,
 			&chapter.Content,
 			&chapter.WordCount,
@@ -229,13 +230,14 @@ func (r *AppRepository) ListChaptersByNovel(novelID int) ([]*Chapter, error) {
 func (r *AppRepository) GetChapter(id int) (*Chapter, error) {
 	var chapter Chapter
 	err := r.db.QueryRow(
-		`SELECT id, novel_id, number, title, content, word_count, created_at, updated_at
+		`SELECT id, novel_id, number, volume, title, content, word_count, created_at, updated_at
 		 FROM chapters WHERE id = $1`,
 		id,
 	).Scan(
 		&chapter.ID,
 		&chapter.NovelID,
 		&chapter.Number,
+		&chapter.Volume,
 		&chapter.Title,
 		&chapter.Content,
 		&chapter.WordCount,
@@ -256,9 +258,14 @@ func (r *AppRepository) CreateChapter(novelID int, input ChapterInput) (*Chapter
 		return nil, err
 	}
 	now := time.Now()
+	volume := input.Volume
+	if volume < 1 {
+		volume = 1
+	}
 	chapter := &Chapter{
 		NovelID:   novelID,
 		Number:    input.Number,
+		Volume:    volume,
 		Title:     strings.TrimSpace(input.Title),
 		Content:   strings.TrimSpace(input.Content),
 		WordCount: len(strings.Fields(input.Content)),
@@ -267,11 +274,12 @@ func (r *AppRepository) CreateChapter(novelID int, input ChapterInput) (*Chapter
 	}
 
 	err := r.db.QueryRow(
-		`INSERT INTO chapters (novel_id, number, title, content, word_count, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`INSERT INTO chapters (novel_id, number, volume, title, content, word_count, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING id`,
 		chapter.NovelID,
 		chapter.Number,
+		chapter.Volume,
 		chapter.Title,
 		chapter.Content,
 		chapter.WordCount,
@@ -290,14 +298,18 @@ func (r *AppRepository) UpdateChapter(id int, input ChapterInput) (*Chapter, err
 		return nil, err
 	}
 	chapter.Number = input.Number
+	if input.Volume >= 1 {
+		chapter.Volume = input.Volume
+	}
 	chapter.Title = strings.TrimSpace(input.Title)
 	chapter.Content = strings.TrimSpace(input.Content)
 	chapter.WordCount = len(strings.Fields(input.Content))
 	chapter.UpdatedAt = time.Now()
 
 	_, err = r.db.Exec(
-		`UPDATE chapters SET number = $1, title = $2, content = $3, word_count = $4, updated_at = $5 WHERE id = $6`,
+		`UPDATE chapters SET number = $1, volume = $2, title = $3, content = $4, word_count = $5, updated_at = $6 WHERE id = $7`,
 		chapter.Number,
+		chapter.Volume,
 		chapter.Title,
 		chapter.Content,
 		chapter.WordCount,
@@ -795,11 +807,18 @@ func (r *AppRepository) invalidateNovelsCache() {
 
 func (r *AppRepository) GetSiteSettings() (*SiteSettings, error) {
 	var settings SiteSettings
-	err := r.db.QueryRow(
-		`SELECT id, title, tagline, logo_url, logo_alt, headline, hero_description,
-		 primary_button, secondary_button, accent_color, highlight_label, updated_at
-		 FROM site_settings WHERE id = 1`,
-	).Scan(
+		err := r.db.QueryRow(
+			`SELECT id, title, tagline, logo_url, logo_alt, headline, hero_description,
+			 primary_button, secondary_button, accent_color, highlight_label,
+			 facebook_url, discord_url,
+			 footer_updates_label, footer_updates_url,
+			 footer_series_label, footer_series_url,
+			 footer_admin_label, footer_admin_url,
+			 footer_link4_label, footer_link4_url,
+			 footer_link5_label, footer_link5_url,
+			 updated_at
+			 FROM site_settings WHERE id = 1`,
+		).Scan(
 		&settings.ID,
 		&settings.Title,
 		&settings.Tagline,
@@ -811,6 +830,18 @@ func (r *AppRepository) GetSiteSettings() (*SiteSettings, error) {
 		&settings.SecondaryCta,
 		&settings.AccentColor,
 		&settings.HighlightLabel,
+		&settings.FacebookUrl,
+		&settings.DiscordUrl,
+		&settings.FooterUpdatesLabel,
+		&settings.FooterUpdatesUrl,
+		&settings.FooterSeriesLabel,
+		&settings.FooterSeriesUrl,
+		&settings.FooterAdminLabel,
+		&settings.FooterAdminUrl,
+		&settings.FooterLink4Label,
+		&settings.FooterLink4Url,
+		&settings.FooterLink5Label,
+		&settings.FooterLink5Url,
 		&settings.UpdatedAt,
 	)
 	if err != nil {
@@ -827,6 +858,18 @@ func (r *AppRepository) GetSiteSettings() (*SiteSettings, error) {
 				SecondaryCta:  "",
 				AccentColor:   "",
 				HighlightLabel: "",
+				FacebookUrl: "",
+				DiscordUrl: "",
+				FooterUpdatesLabel: "Updates",
+				FooterUpdatesUrl: "/updates",
+				FooterSeriesLabel: "Series",
+				FooterSeriesUrl: "/library",
+				FooterAdminLabel: "Admin",
+				FooterAdminUrl: "/admin",
+				FooterLink4Label: "",
+				FooterLink4Url: "",
+				FooterLink5Label: "",
+				FooterLink5Url: "",
 				UpdatedAt:     time.Now(),
 			}, nil
 		}
@@ -848,13 +891,32 @@ func (r *AppRepository) UpdateSiteSettings(input SiteSettingsInput) (*SiteSettin
 		SecondaryCta: strings.TrimSpace(input.SecondaryCta),
 		AccentColor: strings.TrimSpace(input.AccentColor),
 		HighlightLabel: strings.TrimSpace(input.HighlightLabel),
+		FacebookUrl: strings.TrimSpace(input.FacebookUrl),
+		DiscordUrl: strings.TrimSpace(input.DiscordUrl),
+		FooterUpdatesLabel: strings.TrimSpace(input.FooterUpdatesLabel),
+		FooterUpdatesUrl: strings.TrimSpace(input.FooterUpdatesUrl),
+		FooterSeriesLabel: strings.TrimSpace(input.FooterSeriesLabel),
+		FooterSeriesUrl: strings.TrimSpace(input.FooterSeriesUrl),
+		FooterAdminLabel: strings.TrimSpace(input.FooterAdminLabel),
+		FooterAdminUrl: strings.TrimSpace(input.FooterAdminUrl),
+		FooterLink4Label: strings.TrimSpace(input.FooterLink4Label),
+		FooterLink4Url: strings.TrimSpace(input.FooterLink4Url),
+		FooterLink5Label: strings.TrimSpace(input.FooterLink5Label),
+		FooterLink5Url: strings.TrimSpace(input.FooterLink5Url),
 		UpdatedAt: time.Now(),
 	}
 	_, err := r.db.Exec(
 		`INSERT INTO site_settings (
 			id, title, tagline, logo_url, logo_alt, headline, hero_description,
-			primary_button, secondary_button, accent_color, highlight_label, updated_at
-		 ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			primary_button, secondary_button, accent_color, highlight_label,
+			facebook_url, discord_url,
+			footer_updates_label, footer_updates_url,
+			footer_series_label, footer_series_url,
+			footer_admin_label, footer_admin_url,
+			footer_link4_label, footer_link4_url,
+			footer_link5_label, footer_link5_url,
+			updated_at
+		 ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 		 ON CONFLICT (id) DO UPDATE SET
 			 title = EXCLUDED.title,
 			 tagline = EXCLUDED.tagline,
@@ -866,6 +928,18 @@ func (r *AppRepository) UpdateSiteSettings(input SiteSettingsInput) (*SiteSettin
 			 secondary_button = EXCLUDED.secondary_button,
 			 accent_color = EXCLUDED.accent_color,
 			 highlight_label = EXCLUDED.highlight_label,
+			 facebook_url = EXCLUDED.facebook_url,
+			 discord_url = EXCLUDED.discord_url,
+			 footer_updates_label = EXCLUDED.footer_updates_label,
+			 footer_updates_url = EXCLUDED.footer_updates_url,
+			 footer_series_label = EXCLUDED.footer_series_label,
+			 footer_series_url = EXCLUDED.footer_series_url,
+			 footer_admin_label = EXCLUDED.footer_admin_label,
+			 footer_admin_url = EXCLUDED.footer_admin_url,
+			 footer_link4_label = EXCLUDED.footer_link4_label,
+			 footer_link4_url = EXCLUDED.footer_link4_url,
+			 footer_link5_label = EXCLUDED.footer_link5_label,
+			 footer_link5_url = EXCLUDED.footer_link5_url,
 			 updated_at = EXCLUDED.updated_at`,
 		settings.Title,
 		settings.Tagline,
@@ -877,6 +951,18 @@ func (r *AppRepository) UpdateSiteSettings(input SiteSettingsInput) (*SiteSettin
 		settings.SecondaryCta,
 		settings.AccentColor,
 		settings.HighlightLabel,
+		settings.FacebookUrl,
+		settings.DiscordUrl,
+		settings.FooterUpdatesLabel,
+		settings.FooterUpdatesUrl,
+		settings.FooterSeriesLabel,
+		settings.FooterSeriesUrl,
+		settings.FooterAdminLabel,
+		settings.FooterAdminUrl,
+		settings.FooterLink4Label,
+		settings.FooterLink4Url,
+		settings.FooterLink5Label,
+		settings.FooterLink5Url,
 		settings.UpdatedAt,
 	)
 	if err != nil {

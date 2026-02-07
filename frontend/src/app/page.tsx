@@ -72,11 +72,11 @@ export default function Home() {
       .catch(() => null);
   }, [session]);
 
-  const rankings = useMemo(() => {
-    return [...novels]
-      .sort((a, b) => parseDate(b.updatedAt) - parseDate(a.updatedAt))
-      .slice(0, 5);
+  const novelsByUpdated = useMemo(() => {
+    return [...novels].sort((a, b) => parseDate(b.updatedAt) - parseDate(a.updatedAt));
   }, [novels]);
+
+  const rankings = useMemo(() => novelsByUpdated.slice(0, 5), [novelsByUpdated]);
 
   const newSeries = useMemo(() => {
     return [...novels]
@@ -84,11 +84,7 @@ export default function Home() {
       .slice(0, 4);
   }, [novels]);
 
-  const latestUpdates = useMemo(() => {
-    return [...novels]
-      .sort((a, b) => parseDate(b.updatedAt) - parseDate(a.updatedAt))
-      .slice(0, 5);
-  }, [novels]);
+  const latestUpdates = useMemo(() => novelsByUpdated.slice(0, 5), [novelsByUpdated]);
 
   const authorCount = useMemo(() => {
     return new Set(novels.map((novel) => novel.author).filter(Boolean)).size;

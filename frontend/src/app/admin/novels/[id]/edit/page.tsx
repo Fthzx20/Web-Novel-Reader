@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, BookmarkCheck, ChevronDown } from "lucide-react";
+import { ArrowDown, ArrowUp, BookmarkCheck, ChevronDown, Save } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteNav } from "@/components/site/site-nav";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   fetchChaptersByNovel,
+  createChapterAdmin,
   fetchNovel,
   deleteChapterAdmin,
   deleteNovelAdmin,
@@ -22,6 +23,8 @@ import {
   type AdminNovel,
 } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
+import { loadDraft, removeDraft, saveDraft as persistDraft } from "@/lib/draft-storage";
+import { serializePlateToText } from "@/lib/plate-content";
 import { resolveAssetUrl } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -30,13 +33,30 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/plate/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/plate/components/ui/dialog";
+import { PlateEditor, type PlateValue } from "@/plate/components/editor/plate-editor";
 
 type ChapterItem = {
   id: number;
   number: number;
+  volume: number;
   title: string;
   content: string;
   releasedAt: string;
+};
+
+type ChapterDraft = {
+  number: number;
+  volume: string;
+  title: string;
+  value: PlateValue;
+  savedAt: string;
 };
 
 export default function EditNovelPage() {
@@ -55,11 +75,31 @@ export default function EditNovelPage() {
   const [coverUrl, setCoverUrl] = useState("");
   const [notice, setNotice] = useState("");
   const [metadataOpen, setMetadataOpen] = useState(true);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [chapterNumber, setChapterNumber] = useState(1);
+  const [chapterVolume, setChapterVolume] = useState("");
+  const [chapterTitle, setChapterTitle] = useState("");
+  const [chapterValue, setChapterValue] = useState<PlateValue>([
+    { type: "p", children: [{ text: "" }] },
+  ]);
+  const chapterValueRef = useRef<PlateValue>(chapterValue);
+  const [editorKey, setEditorKey] = useState(0);
+  const [editorNotice, setEditorNotice] = useState("");
+  const [editorSaving, setEditorSaving] = useState(false);
+  const [draft, setDraft] = useState<ChapterDraft | null>(null);
+  const [resumeDraft, setResumeDraft] = useState(false);
+  const [draftStatus, setDraftStatus] = useState("");
+  const editorInitializedRef = useRef(false);
   const statusOptions = ["Hiatus", "Completed", "Ongoing", "Axed", "Dropped"];
   const [chapters, setChapters] = useState<ChapterItem[]>(
     []
   );
   const resolvedCoverUrl = coverUrl ? resolveAssetUrl(coverUrl) : "";
+  const draftKey = useMemo(
+    () => (Number.isFinite(novelId) ? `admin:novel:${novelId}:draft` : ""),
+    [novelId]
+  );
 
   useEffect(() => {
     const session = loadSession();
@@ -105,6 +145,7 @@ export default function EditNovelPage() {
           chapterData.map((chapter) => ({
             id: chapter.id,
             number: chapter.number,
+            volume: chapter.volume ?? 1,
             title: chapter.title,
             content: chapter.content,
             releasedAt: chapter.createdAt
@@ -117,6 +158,89 @@ export default function EditNovelPage() {
         setNotice(err instanceof Error ? err.message : "Failed to load project.");
       });
   }, [novelId]);
+
+  useEffect(() => {
+    if (!draftKey) {
+      return;
+    }
+    let mounted = true;
+    void loadDraft<ChapterDraft>(draftKey).then((result) => {
+      if (!mounted) {
+        return;
+      }
+      setDraft(result.value);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!editorOpen) {
+      editorInitializedRef.current = false;
+      return;
+    }
+    if (editorInitializedRef.current) {
+      return;
+    }
+    if (draft) {
+      setChapterNumber(draft.number || 1);
+      setChapterVolume(draft.volume || "");
+      setChapterTitle(draft.title || "");
+      chapterValueRef.current = draft.value;
+      setChapterValue(draft.value);
+      setEditorKey((current) => current + 1);
+      setEditorNotice("");
+      setResumeDraft(false);
+      editorInitializedRef.current = true;
+      return;
+    }
+    const nextNumber = chapters.length
+      ? Math.max(...chapters.map((chapter) => chapter.number)) + 1
+      : 1;
+    setChapterNumber(nextNumber);
+    setChapterVolume("");
+    setChapterTitle("");
+    const nextValue: PlateValue = [{ type: "p", children: [{ text: "" }] }];
+    chapterValueRef.current = nextValue;
+    setChapterValue(nextValue);
+    setEditorKey((current) => current + 1);
+    setEditorNotice("");
+    setResumeDraft(false);
+    editorInitializedRef.current = true;
+  }, [editorOpen, chapters, draft, resumeDraft]);
+
+  const saveDraft = (manual: boolean) => {
+    if (!draftKey) {
+      return;
+    }
+    const payload: ChapterDraft = {
+      number: chapterNumber,
+      volume: chapterVolume,
+      title: chapterTitle,
+      value: chapterValueRef.current,
+      savedAt: new Date().toISOString(),
+    };
+    void persistDraft(draftKey, payload)
+      .then(() => {
+        setDraft(payload);
+        setDraftStatus(
+          `${manual ? "Draft saved" : "Auto-saved"} ${new Date().toLocaleTimeString()}`
+        );
+      })
+      .catch(() => {
+        setDraftStatus("Draft too large to save locally.");
+      });
+  };
+
+  useEffect(() => {
+    if (!editorOpen) {
+      return;
+    }
+    saveDraft(false);
+    const handle = window.setInterval(() => saveDraft(false), 60000);
+    return () => window.clearInterval(handle);
+  }, [editorOpen]);
 
   const moveChapter = async (index: number, direction: "up" | "down") => {
     const nextIndex = direction === "up" ? index - 1 : index + 1;
@@ -134,11 +258,13 @@ export default function EditNovelPage() {
       await Promise.all([
         updateChapterAdmin(current.id, {
           number: clone[index].number,
+          volume: current.volume,
           title: current.title,
           content: current.content,
         }),
         updateChapterAdmin(target.id, {
           number: clone[nextIndex].number,
+          volume: target.volume,
           title: target.title,
           content: target.content,
         }),
@@ -149,6 +275,158 @@ export default function EditNovelPage() {
       setNotice(err instanceof Error ? err.message : "Failed to update chapter order.");
     }
   };
+
+  const handleSaveChapter = async () => {
+    if (!novelId) {
+      return;
+    }
+    const trimmedTitle = chapterTitle.trim();
+    const content = serializePlateToText(chapterValueRef.current).trim();
+    const rawVolume = chapterVolume.trim();
+    const volumeValue = rawVolume ? Number(rawVolume) : 1;
+    if (!chapterNumber || chapterNumber < 1 || !trimmedTitle || !content) {
+      setEditorNotice("Chapter number, title, and content are required.");
+      return;
+    }
+    if (Number.isNaN(volumeValue) || volumeValue < 1) {
+      setEditorNotice("Volume must be 1 or greater.");
+      return;
+    }
+    setEditorNotice("");
+    setEditorSaving(true);
+    try {
+      const created = await createChapterAdmin(novelId, {
+        number: chapterNumber,
+        volume: volumeValue || 1,
+        title: trimmedTitle,
+        content,
+      });
+      setChapters((current) => [
+        ...current,
+        {
+          id: created.id,
+          number: created.number,
+          volume: created.volume ?? (volumeValue || 1),
+          title: created.title,
+          content: created.content,
+          releasedAt: created.createdAt
+            ? new Date(created.createdAt).toLocaleDateString()
+            : "",
+        },
+      ]);
+      void removeDraft(draftKey);
+      setDraft(null);
+      setSaveModalOpen(false);
+      setEditorOpen(false);
+      setNotice("Chapter created.");
+    } catch (err) {
+      setEditorNotice(err instanceof Error ? err.message : "Failed to save chapter.");
+    } finally {
+      setEditorSaving(false);
+    }
+  };
+
+  if (editorOpen) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="flex min-h-screen flex-col">
+          <div className="sticky top-0 z-40 border-b border-border/60 bg-background/95 px-4 py-4 backdrop-blur sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  Text editor
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  Compose the chapter content and save it to the library.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {draftStatus && (
+                  <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="h-2 w-2 rounded-full bg-amber-200" />
+                    {draftStatus}
+                  </span>
+                )}
+                <Button variant="outline" onClick={() => saveDraft(true)}>
+                  Save draft
+                </Button>
+                <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                  Back
+                </Button>
+                <Button
+                  className="gap-2 bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
+                  disabled={editorSaving}
+                  onClick={() => setSaveModalOpen(true)}
+                >
+                  <Save className="h-4 w-4" />
+                  Save chapter
+                </Button>
+              </div>
+            </div>
+            {editorNotice && <p className="mt-3 text-sm text-amber-200">{editorNotice}</p>}
+          </div>
+          <div className="min-h-0 flex-1">
+            <PlateEditor
+              key={editorKey}
+              value={chapterValue}
+              onChange={(nextValue) => {
+                chapterValueRef.current = nextValue;
+                setChapterValue(nextValue);
+              }}
+              containerClassName="overflow-visible"
+              variant="demo"
+            />
+          </div>
+          <Dialog open={saveModalOpen} onOpenChange={setSaveModalOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Chapter details</DialogTitle>
+                <DialogDescription>
+                  Add the chapter metadata before publishing.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="Volume"
+                    value={chapterVolume}
+                    onChange={(event) => setChapterVolume(event.target.value)}
+                  />
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="Chapter number"
+                    value={chapterNumber}
+                    onChange={(event) => setChapterNumber(Number(event.target.value))}
+                  />
+                </div>
+                <Input
+                  placeholder="Chapter title"
+                  value={chapterTitle}
+                  onChange={(event) => setChapterTitle(event.target.value)}
+                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button variant="outline" onClick={() => setSaveModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    className="gap-2 bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
+                    disabled={editorSaving}
+                    onClick={handleSaveChapter}
+                  >
+                    <Save className="h-4 w-4" />
+                    Publish chapter
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -315,15 +593,55 @@ export default function EditNovelPage() {
           <Card className="border-border/60 bg-card/80">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle>Write chapter</CardTitle>
-              <Button variant="outline" size="sm" disabled>
-                Rich text editor (soon)
+              <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)}>
+                Open editor
               </Button>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              Draft new chapters here once the rich text editor is ready.
+              Draft new chapters with the rich text editor.
             </CardContent>
           </Card>
         </div>
+        {draft && (
+          <Card className="mt-8 border-amber-200/40 bg-card/80">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle>Saved draft</CardTitle>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
+                  onClick={() => {
+                    setResumeDraft(true);
+                    setEditorOpen(true);
+                  }}
+                >
+                  Resume draft
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    void removeDraft(draftKey);
+                    setDraft(null);
+                  }}
+                >
+                  Discard
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <p className="text-foreground">
+                {draft.title ? draft.title : "Untitled draft"}
+              </p>
+              <p>
+                Volume {draft.volume || "-"} · Chapter {draft.number || "-"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Saved {new Date(draft.savedAt).toLocaleString()}
+              </p>
+            </CardContent>
+          </Card>
+        )}
         <Card className="mt-10">
           <CardHeader>
             <CardTitle>Chapter order</CardTitle>
@@ -336,7 +654,7 @@ export default function EditNovelPage() {
               >
                 <div>
                   <p className="font-medium text-foreground">
-                    Chapter {chapter.number}: {chapter.title}
+                    Volume {chapter.volume} · Chapter {chapter.number}: {chapter.title}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Released {chapter.releasedAt}

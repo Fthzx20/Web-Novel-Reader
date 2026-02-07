@@ -20,6 +20,7 @@ export function SiteNav() {
   const isSignedIn = Boolean(session);
   const displayName = session?.user.name ?? "Profile";
   const isAdmin = session?.user.role === "admin";
+  const displayRole = isAdmin ? "Admin" : "";
 
   useEffect(() => {
     setSession(loadSession());
@@ -70,6 +71,7 @@ export function SiteNav() {
             <Button variant="ghost" className="gap-2" onClick={() => setProfileOpen((current) => !current)} aria-expanded={profileOpen} aria-haspopup="menu">
               <User className="h-4 w-4" />
               {displayName}
+              {displayRole && <span className="text-xs text-muted-foreground">{displayRole}</span>}
             </Button>
             {profileOpen && (
               <div className="absolute right-0 top-12 w-44 rounded-lg border border-border/50 bg-background/95 p-2 text-sm shadow-lg">

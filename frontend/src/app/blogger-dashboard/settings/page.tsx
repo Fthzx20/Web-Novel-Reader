@@ -9,7 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchSiteSettings, updateSiteSettings, uploadLogo } from "@/lib/api";
+import {
+  fetchSiteSettings,
+  updateSiteSettings,
+  uploadLogo,
+} from "@/lib/api";
 import { loadSession } from "@/lib/auth";
 
 export default function BloggerSettingsPage() {
@@ -27,6 +31,18 @@ export default function BloggerSettingsPage() {
   const [secondaryButton, setSecondaryButton] = useState("Browse updates");
   const [accentColor, setAccentColor] = useState("#FBBF24");
   const [highlightLabel, setHighlightLabel] = useState("Malaz Translation Project");
+  const [facebookUrl, setFacebookUrl] = useState("");
+  const [discordUrl, setDiscordUrl] = useState("");
+  const [footerUpdatesLabel, setFooterUpdatesLabel] = useState("Updates");
+  const [footerUpdatesUrl, setFooterUpdatesUrl] = useState("/updates");
+  const [footerSeriesLabel, setFooterSeriesLabel] = useState("Series");
+  const [footerSeriesUrl, setFooterSeriesUrl] = useState("/library");
+  const [footerAdminLabel, setFooterAdminLabel] = useState("Admin");
+  const [footerAdminUrl, setFooterAdminUrl] = useState("/admin");
+  const [footerLink4Label, setFooterLink4Label] = useState("");
+  const [footerLink4Url, setFooterLink4Url] = useState("");
+  const [footerLink5Label, setFooterLink5Label] = useState("");
+  const [footerLink5Url, setFooterLink5Url] = useState("");
   const [notice, setNotice] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -48,6 +64,18 @@ export default function BloggerSettingsPage() {
         setSecondaryButton(settings.secondaryButton || "Browse updates");
         setAccentColor(settings.accentColor || "#FBBF24");
         setHighlightLabel(settings.highlightLabel || "Malaz Translation Project");
+        setFacebookUrl(settings.facebookUrl || "");
+        setDiscordUrl(settings.discordUrl || "");
+        setFooterUpdatesLabel(settings.footerUpdatesLabel || "Updates");
+        setFooterUpdatesUrl(settings.footerUpdatesUrl || "/updates");
+        setFooterSeriesLabel(settings.footerSeriesLabel || "Series");
+        setFooterSeriesUrl(settings.footerSeriesUrl || "/library");
+        setFooterAdminLabel(settings.footerAdminLabel || "Admin");
+        setFooterAdminUrl(settings.footerAdminUrl || "/admin");
+        setFooterLink4Label(settings.footerLink4Label || "");
+        setFooterLink4Url(settings.footerLink4Url || "");
+        setFooterLink5Label(settings.footerLink5Label || "");
+        setFooterLink5Url(settings.footerLink5Url || "");
       })
       .catch((err) => {
         setNotice(err instanceof Error ? err.message : "Failed to load settings.");
@@ -76,6 +104,18 @@ export default function BloggerSettingsPage() {
         secondaryButton: secondaryButton.trim(),
         accentColor: accentColor.trim(),
         highlightLabel: highlightLabel.trim(),
+        facebookUrl: facebookUrl.trim(),
+        discordUrl: discordUrl.trim(),
+        footerUpdatesLabel: footerUpdatesLabel.trim(),
+        footerUpdatesUrl: footerUpdatesUrl.trim(),
+        footerSeriesLabel: footerSeriesLabel.trim(),
+        footerSeriesUrl: footerSeriesUrl.trim(),
+        footerAdminLabel: footerAdminLabel.trim(),
+        footerAdminUrl: footerAdminUrl.trim(),
+        footerLink4Label: footerLink4Label.trim(),
+        footerLink4Url: footerLink4Url.trim(),
+        footerLink5Label: footerLink5Label.trim(),
+        footerLink5Url: footerLink5Url.trim(),
       });
       setNotice("Settings saved.");
     } catch (err) {
@@ -218,9 +258,93 @@ export default function BloggerSettingsPage() {
                   >
                     Save settings
                   </Button>
-                  <Button variant="outline" className="sm:w-auto">
-                    Preview changes
+                  <Button variant="outline" className="sm:w-auto" asChild>
+                    <Link href="/">
+                      Preview changes
+                    </Link>
                   </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/60 bg-card/80">
+            <CardHeader>
+              <CardTitle>Links</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Update social and footer links shown across the site.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  Social links
+                </p>
+                <Input
+                  placeholder="Facebook URL"
+                  value={facebookUrl}
+                  onChange={(event) => setFacebookUrl(event.target.value)}
+                />
+                <Input
+                  placeholder="Discord URL"
+                  value={discordUrl}
+                  onChange={(event) => setDiscordUrl(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  Footer links
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    placeholder="Footer link 1 label"
+                    value={footerUpdatesLabel}
+                    onChange={(event) => setFooterUpdatesLabel(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Footer link 1 URL"
+                    value={footerUpdatesUrl}
+                    onChange={(event) => setFooterUpdatesUrl(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Footer link 2 label"
+                    value={footerSeriesLabel}
+                    onChange={(event) => setFooterSeriesLabel(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Footer link 2 URL"
+                    value={footerSeriesUrl}
+                    onChange={(event) => setFooterSeriesUrl(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Footer link 3 label"
+                    value={footerAdminLabel}
+                    onChange={(event) => setFooterAdminLabel(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Footer link 3 URL"
+                    value={footerAdminUrl}
+                    onChange={(event) => setFooterAdminUrl(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Footer link 4 label"
+                    value={footerLink4Label}
+                    onChange={(event) => setFooterLink4Label(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Footer link 4 URL"
+                    value={footerLink4Url}
+                    onChange={(event) => setFooterLink4Url(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Footer link 5 label"
+                    value={footerLink5Label}
+                    onChange={(event) => setFooterLink5Label(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Footer link 5 URL"
+                    value={footerLink5Url}
+                    onChange={(event) => setFooterLink5Url(event.target.value)}
+                  />
                 </div>
               </div>
             </CardContent>

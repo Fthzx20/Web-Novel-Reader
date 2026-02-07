@@ -35,6 +35,18 @@ export default function AdminSettingsPage() {
     secondaryButton: "",
     accentColor: "",
     highlightLabel: "",
+    facebookUrl: "",
+    discordUrl: "",
+    footerUpdatesLabel: "Updates",
+    footerUpdatesUrl: "/updates",
+    footerSeriesLabel: "Series",
+    footerSeriesUrl: "/library",
+    footerAdminLabel: "Admin",
+    footerAdminUrl: "/admin",
+    footerLink4Label: "",
+    footerLink4Url: "",
+    footerLink5Label: "",
+    footerLink5Url: "",
   });
   const [announcements, setAnnouncements] = useState<
     Array<{ id: number; title: string; body: string }>
@@ -60,6 +72,18 @@ export default function AdminSettingsPage() {
           secondaryButton: data.secondaryButton,
           accentColor: data.accentColor,
           highlightLabel: data.highlightLabel,
+          facebookUrl: data.facebookUrl,
+          discordUrl: data.discordUrl,
+          footerUpdatesLabel: data.footerUpdatesLabel,
+          footerUpdatesUrl: data.footerUpdatesUrl,
+          footerSeriesLabel: data.footerSeriesLabel,
+          footerSeriesUrl: data.footerSeriesUrl,
+          footerAdminLabel: data.footerAdminLabel,
+          footerAdminUrl: data.footerAdminUrl,
+          footerLink4Label: data.footerLink4Label,
+          footerLink4Url: data.footerLink4Url,
+          footerLink5Label: data.footerLink5Label,
+          footerLink5Url: data.footerLink5Url,
         })
       )
       .catch(() => setNotice("Unable to load settings."));
@@ -171,6 +195,18 @@ export default function AdminSettingsPage() {
                       secondaryButton: updated.secondaryButton,
                       accentColor: updated.accentColor,
                       highlightLabel: updated.highlightLabel,
+                      facebookUrl: updated.facebookUrl,
+                      discordUrl: updated.discordUrl,
+                      footerUpdatesLabel: updated.footerUpdatesLabel,
+                      footerUpdatesUrl: updated.footerUpdatesUrl,
+                      footerSeriesLabel: updated.footerSeriesLabel,
+                      footerSeriesUrl: updated.footerSeriesUrl,
+                      footerAdminLabel: updated.footerAdminLabel,
+                      footerAdminUrl: updated.footerAdminUrl,
+                      footerLink4Label: updated.footerLink4Label,
+                      footerLink4Url: updated.footerLink4Url,
+                      footerLink5Label: updated.footerLink5Label,
+                      footerLink5Url: updated.footerLink5Url,
                     });
                     setNotice("Settings saved.");
                   } catch (err) {

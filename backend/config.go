@@ -17,6 +17,7 @@ type Config struct {
 	JWTSecret          string
 	JWTTTL             time.Duration
 	AdminEmails        []string
+	ModerationPassword string
 }
 
 func LoadConfig() Config {
@@ -31,6 +32,7 @@ func LoadConfig() Config {
 		JWTSecret:         getEnv("JWT_SECRET", "dev-secret"),
 		JWTTTL:            getEnvDuration("JWT_TTL", "24h"),
 		AdminEmails:       getEnvList("ADMIN_EMAILS"),
+		ModerationPassword: os.Getenv("MODERATION_PASSWORD"),
 	}
 }
 

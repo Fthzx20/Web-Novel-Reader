@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Copy, Palette, Sliders, Text } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchChaptersByNovel, fetchNovels, recordReadingHistory, type AdminNovel, type Chapter } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
+import { coerceContentToText } from "@/lib/plate-content";
 import { resolveAssetUrl } from "@/lib/utils";
 
 type ReaderPrefs = {
@@ -61,30 +62,44 @@ export default function ReaderPage() {
     latestChapter ??
     chapters[0] ?? null;
 
+  const normalizedContent = useMemo(() => {
+    return rawChapter?.content ? coerceContentToText(rawChapter.content) : "";
+  }, [rawChapter?.content]);
+
+  const chapterContent = useMemo(() => {
+    if (!normalizedContent) {
+      return ["This chapter is empty."];
+    }
+    const parts = normalizedContent.split(/\n\s*\n/).filter(Boolean);
+    return parts.length ? parts : ["This chapter is empty."];
+  }, [normalizedContent]);
+
   const chapter = rawChapter
     ? {
         id: rawChapter.id,
         number: rawChapter.number,
+        volume: rawChapter.volume ?? 1,
         title: rawChapter.title,
-        content: rawChapter.content
-          ? rawChapter.content.split(/\n\s*\n/).filter(Boolean)
-          : ["This chapter is empty."],
+        content: chapterContent,
       }
     : {
         id: 0,
         number: 0,
+        volume: 1,
         title: "Chapter unavailable",
         content: [
           notice || "This chapter is not available yet. Try another chapter from the list.",
         ],
       };
 
-  const chapterWords = rawChapter?.content
-    ? rawChapter.content.trim().split(/\s+/).length
-    : 0;
-  const chapterReadTime = chapterWords
-    ? `${Math.max(1, Math.round(chapterWords / 200))} min read`
-    : "";
+  const chapterWords = useMemo(() => {
+    return normalizedContent ? normalizedContent.trim().split(/\s+/).length : 0;
+  }, [normalizedContent]);
+
+  const chapterReadTime = useMemo(() => {
+    return chapterWords ? `${Math.max(1, Math.round(chapterWords / 200))} min read` : "";
+  }, [chapterWords]);
+
   const chapterRelease = rawChapter?.createdAt
     ? new Date(rawChapter.createdAt).toLocaleDateString()
     : "";
@@ -139,7 +154,7 @@ export default function ReaderPage() {
       novelSlug: novel.slug,
       novelTitle: novel.title,
       chapterId: chapter.id,
-      chapterTitle: `Chapter ${chapter.number}: ${chapter.title}`,
+      chapterTitle: `Volume ${chapter.volume} · Chapter ${chapter.number}: ${chapter.title}`,
     }).catch(() => null);
   }, [chapter.id, chapter.number, chapter.title, novel?.slug, novel?.title]);
 
@@ -158,6 +173,16 @@ export default function ReaderPage() {
   const previousChapter = chapters[chapterIndex - 1];
   const nextChapter = chapters[chapterIndex + 1];
 
+  const copyTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        window.clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleCopy = async () => {
     if (typeof window === "undefined") {
       return;
@@ -168,7 +193,10 @@ export default function ReaderPage() {
     } catch {
       setCopyStatus("Copy failed");
     }
-    window.setTimeout(() => setCopyStatus(""), 2000);
+    if (copyTimeoutRef.current) {
+      window.clearTimeout(copyTimeoutRef.current);
+    }
+    copyTimeoutRef.current = window.setTimeout(() => setCopyStatus(""), 2000);
   };
 
   const renderParagraph = (text: string, index: number) => {
@@ -186,7 +214,7 @@ export default function ReaderPage() {
               key={partIndex}
               src={url}
               alt="Illustration"
-              className="mx-2 inline-block max-h-64 max-w-full rounded-lg border border-border/40 align-middle"
+              className="mx-auto my-6 block w-full max-w-3xl rounded-lg border border-border/40"
             />
           );
         })}
@@ -204,7 +232,7 @@ export default function ReaderPage() {
               {novel?.title ?? "Loading..."}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Chapter {chapter.number}: {chapter.title}
+              Volume {chapter.volume} · Chapter {chapter.number}: {chapter.title}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

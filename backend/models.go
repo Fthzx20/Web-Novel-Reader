@@ -19,6 +19,7 @@ type Chapter struct {
 	ID        int       `json:"id"`
 	NovelID   int       `json:"novelId"`
 	Number    int       `json:"number"`
+	Volume    int       `json:"volume"`
 	Title     string    `json:"title"`
 	Content   string    `json:"content"`
 	WordCount int       `json:"wordCount"`
@@ -96,6 +97,18 @@ type SiteSettings struct {
 	SecondaryCta string `json:"secondaryButton"`
 	AccentColor string  `json:"accentColor"`
 	HighlightLabel string `json:"highlightLabel"`
+	FacebookUrl string `json:"facebookUrl"`
+	DiscordUrl string `json:"discordUrl"`
+	FooterUpdatesLabel string `json:"footerUpdatesLabel"`
+	FooterUpdatesUrl string `json:"footerUpdatesUrl"`
+	FooterSeriesLabel string `json:"footerSeriesLabel"`
+	FooterSeriesUrl string `json:"footerSeriesUrl"`
+	FooterAdminLabel string `json:"footerAdminLabel"`
+	FooterAdminUrl string `json:"footerAdminUrl"`
+	FooterLink4Label string `json:"footerLink4Label"`
+	FooterLink4Url string `json:"footerLink4Url"`
+	FooterLink5Label string `json:"footerLink5Label"`
+	FooterLink5Url string `json:"footerLink5Url"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 

@@ -78,6 +78,7 @@ func (s *Store) seed() {
 
 	chapter, _ := s.CreateChapter(novel.ID, ChapterInput{
 		Number:  1,
+		Volume:  1,
 		Title:   "The Cipher District",
 		Content: "Neon rain ran down the archive walls as the courier listened.",
 	})
@@ -327,7 +328,32 @@ func (s *Store) GetSiteSettings() (*SiteSettings, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.settings == nil {
-		return &SiteSettings{ID: 1, Title: "Nocturne Shelf", Tagline: "A minimalist novel reader.", LogoURL: "", UpdatedAt: time.Now()}, nil
+		return &SiteSettings{
+			ID:        1,
+			Title:     "Nocturne Shelf",
+			Tagline:   "A minimalist novel reader.",
+			LogoURL:   "",
+			LogoAlt:   "",
+			Headline:  "",
+			HeroText:  "",
+			PrimaryCta: "",
+			SecondaryCta: "",
+			AccentColor: "",
+			HighlightLabel: "",
+			FacebookUrl: "",
+			DiscordUrl: "",
+			FooterUpdatesLabel: "Updates",
+			FooterUpdatesUrl: "/updates",
+			FooterSeriesLabel: "Series",
+			FooterSeriesUrl: "/library",
+			FooterAdminLabel: "Admin",
+			FooterAdminUrl: "/admin",
+			FooterLink4Label: "",
+			FooterLink4Url: "",
+			FooterLink5Label: "",
+			FooterLink5Url: "",
+			UpdatedAt: time.Now(),
+		}, nil
 	}
 	return s.settings, nil
 }
@@ -340,6 +366,25 @@ func (s *Store) UpdateSiteSettings(input SiteSettingsInput) (*SiteSettings, erro
 		Title:     strings.TrimSpace(input.Title),
 		Tagline:   strings.TrimSpace(input.Tagline),
 		LogoURL:   strings.TrimSpace(input.LogoURL),
+		LogoAlt:   strings.TrimSpace(input.LogoAlt),
+		Headline:  strings.TrimSpace(input.Headline),
+		HeroText:  strings.TrimSpace(input.HeroText),
+		PrimaryCta: strings.TrimSpace(input.PrimaryCta),
+		SecondaryCta: strings.TrimSpace(input.SecondaryCta),
+		AccentColor: strings.TrimSpace(input.AccentColor),
+		HighlightLabel: strings.TrimSpace(input.HighlightLabel),
+		FacebookUrl: strings.TrimSpace(input.FacebookUrl),
+		DiscordUrl: strings.TrimSpace(input.DiscordUrl),
+		FooterUpdatesLabel: strings.TrimSpace(input.FooterUpdatesLabel),
+		FooterUpdatesUrl: strings.TrimSpace(input.FooterUpdatesUrl),
+		FooterSeriesLabel: strings.TrimSpace(input.FooterSeriesLabel),
+		FooterSeriesUrl: strings.TrimSpace(input.FooterSeriesUrl),
+		FooterAdminLabel: strings.TrimSpace(input.FooterAdminLabel),
+		FooterAdminUrl: strings.TrimSpace(input.FooterAdminUrl),
+		FooterLink4Label: strings.TrimSpace(input.FooterLink4Label),
+		FooterLink4Url: strings.TrimSpace(input.FooterLink4Url),
+		FooterLink5Label: strings.TrimSpace(input.FooterLink5Label),
+		FooterLink5Url: strings.TrimSpace(input.FooterLink5Url),
 		UpdatedAt: time.Now(),
 	}
 	return s.settings, nil
@@ -515,10 +560,15 @@ func (s *Store) CreateChapter(novelID int, input ChapterInput) (*Chapter, error)
 		return nil, errNotFound
 	}
 	now := time.Now()
+	volume := input.Volume
+	if volume < 1 {
+		volume = 1
+	}
 	chapter := &Chapter{
 		ID:        s.nextChapterID,
 		NovelID:   novelID,
 		Number:    input.Number,
+		Volume:    volume,
 		Title:     strings.TrimSpace(input.Title),
 		Content:   strings.TrimSpace(input.Content),
 		WordCount: len(strings.Fields(input.Content)),
@@ -561,6 +611,9 @@ func (s *Store) UpdateChapter(id int, input ChapterInput) (*Chapter, error) {
 		return nil, errNotFound
 	}
 	chapter.Number = input.Number
+	if input.Volume >= 1 {
+		chapter.Volume = input.Volume
+	}
 	chapter.Title = strings.TrimSpace(input.Title)
 	chapter.Content = strings.TrimSpace(input.Content)
 	chapter.WordCount = len(strings.Fields(input.Content))

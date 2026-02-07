@@ -61,13 +61,14 @@ export function useUploadFile({
 
       // Mock upload for unauthenticated users
       // toast.info('User not logged in. Mocking upload process.');
+      const dataUrl = await fileToDataUrl(file);
       const mockUploadedFile = {
         key: 'mock-key-0',
         appUrl: `https://mock-app-url.com/${file.name}`,
         name: file.name,
         size: file.size,
         type: file.type,
-        url: URL.createObjectURL(file),
+        url: dataUrl ?? URL.createObjectURL(file),
       } as UploadedFile;
 
       // Simulate upload progress
@@ -100,6 +101,17 @@ export function useUploadFile({
     uploadFile: uploadThing,
     uploadingFile,
   };
+}
+
+function fileToDataUrl(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(typeof reader.result === 'string' ? reader.result : null);
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
 }
 
 export const { uploadFiles, useUploadThing } =

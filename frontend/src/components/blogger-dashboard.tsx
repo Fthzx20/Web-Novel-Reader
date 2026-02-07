@@ -40,11 +40,15 @@ import {
 } from "@/plate/components/ui/dropdown-menu";
 import {
   createNovelAdmin,
+  createAnnouncement,
+  deleteAnnouncement,
+  fetchAnnouncements,
   deleteNovelAdmin,
   fetchNovelsAdmin,
   fetchNovelStats,
   fetchSiteSettings,
   fetchUsers,
+  updateAnnouncement,
   uploadNovelCover,
   type AdminNovel,
 } from "@/lib/api";
@@ -75,6 +79,13 @@ export function BloggerDashboard() {
   const [newPostNotice, setNewPostNotice] = useState("");
   const [siteLogoUrl, setSiteLogoUrl] = useState("");
   const [usersCount, setUsersCount] = useState(0);
+  const [announcements, setAnnouncements] = useState<
+    Array<{ id: number; title: string; body: string }>
+  >([]);
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: "",
+    body: "",
+  });
   const statusOptions = ["Hiatus", "Completed", "Ongoing", "Axed", "Dropped"];
 
   const loadDashboardData = async () => {
@@ -117,6 +128,11 @@ export function BloggerDashboard() {
       .catch(() => null);
     fetchUsers()
       .then((users) => setUsersCount(users.length))
+      .catch(() => null);
+    fetchAnnouncements()
+      .then((data) =>
+        setAnnouncements(data.map((item) => ({ id: item.id, title: item.title, body: item.body })))
+      )
       .catch(() => null);
   }, []);
 
@@ -231,9 +247,11 @@ export function BloggerDashboard() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" className="gap-2">
-                <Bell className="h-4 w-4" />
-                Alerts
+              <Button variant="outline" className="gap-2" asChild>
+                <Link href="/updates">
+                  <Bell className="h-4 w-4" />
+                  Alerts
+                </Link>
               </Button>
               <Button
                 className="gap-2 bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
@@ -496,6 +514,145 @@ export function BloggerDashboard() {
                   {!libraryPreview.length && (
                     <p className="text-sm text-muted-foreground">No novels yet.</p>
                   )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/60 bg-card/80">
+                <CardHeader>
+                  <CardTitle>Announcements</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Publish updates that appear on the public updates page.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Announcement title"
+                      value={announcementForm.title}
+                      onChange={(event) =>
+                        setAnnouncementForm((current) => ({
+                          ...current,
+                          title: event.target.value,
+                        }))
+                      }
+                    />
+                    <Textarea
+                      placeholder="Announcement details"
+                      value={announcementForm.body}
+                      onChange={(event) =>
+                        setAnnouncementForm((current) => ({
+                          ...current,
+                          body: event.target.value,
+                        }))
+                      }
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        if (!announcementForm.title.trim() || !announcementForm.body.trim()) {
+                          setNotice("Announcement title and body are required.");
+                          return;
+                        }
+                        try {
+                          const created = await createAnnouncement(announcementForm);
+                          setAnnouncements((current) => [created, ...current]);
+                          setAnnouncementForm({ title: "", body: "" });
+                          setNotice("Announcement published.");
+                        } catch (err) {
+                          setNotice(
+                            err instanceof Error
+                              ? err.message
+                              : "Failed to publish announcement."
+                          );
+                        }
+                      }}
+                    >
+                      Publish announcement
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {announcements.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No announcements yet.</p>
+                    )}
+                    {announcements.map((item) => (
+                      <Card key={item.id} className="border-border/60">
+                        <CardContent className="space-y-2 py-4 text-sm text-muted-foreground">
+                          <Input
+                            value={item.title}
+                            onChange={(event) =>
+                              setAnnouncements((current) =>
+                                current.map((entry) =>
+                                  entry.id === item.id
+                                    ? { ...entry, title: event.target.value }
+                                    : entry
+                                )
+                              )
+                            }
+                          />
+                          <Textarea
+                            value={item.body}
+                            onChange={(event) =>
+                              setAnnouncements((current) =>
+                                current.map((entry) =>
+                                  entry.id === item.id
+                                    ? { ...entry, body: event.target.value }
+                                    : entry
+                                )
+                              )
+                            }
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                try {
+                                  const updated = await updateAnnouncement(item.id, {
+                                    title: item.title,
+                                    body: item.body,
+                                  });
+                                  setAnnouncements((current) =>
+                                    current.map((entry) =>
+                                      entry.id === item.id ? updated : entry
+                                    )
+                                  );
+                                  setNotice("Announcement updated.");
+                                } catch (err) {
+                                  setNotice(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to update announcement."
+                                  );
+                                }
+                              }}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={async () => {
+                                try {
+                                  await deleteAnnouncement(item.id);
+                                  setAnnouncements((current) =>
+                                    current.filter((entry) => entry.id !== item.id)
+                                  );
+                                } catch (err) {
+                                  setNotice(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to delete announcement."
+                                  );
+                                }
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
 

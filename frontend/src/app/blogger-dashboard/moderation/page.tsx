@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
+  clearUserHistory,
   deleteUser,
   fetchAdminUsers,
   updateUserRole,
@@ -24,11 +25,50 @@ const formatDate = (value: string) => {
   return new Date(parsed).toLocaleDateString();
 };
 
+const maskName = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "User";
+  }
+  if (trimmed.length <= 2) {
+    return `${trimmed[0]}*`;
+  }
+  return `${trimmed.slice(0, 2)}***`;
+};
+
+const maskEmail = (value: string) => {
+  const trimmed = value.trim();
+  const parts = trimmed.split("@");
+  if (parts.length !== 2) {
+    return "hidden";
+  }
+  const local = parts[0];
+  const domain = parts[1];
+  const maskedLocal = local.length <= 2 ? `${local[0] ?? "*"}*` : `${local.slice(0, 2)}***`;
+  return `${maskedLocal}@${domain}`;
+};
+
+type ConfirmState = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  tone?: "danger";
+  onConfirm: () => Promise<void> | void;
+};
+
+type BulkAction = "make-admin" | "make-user" | "ban" | "unban" | "delete" | "clear-history";
+
 export default function AccountModerationPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [moderationPassword, setModerationPassword] = useState("");
+  const [unlockError, setUnlockError] = useState("");
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -40,15 +80,37 @@ export default function AccountModerationPage() {
     try {
       const data = await fetchAdminUsers();
       setUsers(data);
+      return true;
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to load users.");
+      const message = err instanceof Error ? err.message : "Failed to load users.";
+      setNotice(message);
+      throw new Error(message);
     }
   };
 
   useEffect(() => {
     setIsAdmin(session?.user.role === "admin");
-    void loadUsers();
   }, []);
+
+  useEffect(() => {
+    if (session?.user.role !== "admin" || typeof window === "undefined") {
+      return;
+    }
+    const stored = window.sessionStorage.getItem("moderationPassword") ?? "";
+    if (stored) {
+      setModerationPassword(stored);
+      setIsUnlocked(true);
+    } else {
+      setIsUnlocked(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin || !isUnlocked) {
+      return;
+    }
+    void loadUsers();
+  }, [isAdmin, isUnlocked]);
 
   useEffect(() => {
     setPage(1);
@@ -94,9 +156,7 @@ export default function AccountModerationPage() {
     }
   };
 
-  const applyBulkAction = async (
-    action: "make-admin" | "make-user" | "ban" | "unban" | "delete"
-  ) => {
+  const applyBulkAction = async (action: BulkAction) => {
     if (!selectedIds.length) {
       setNotice("Select at least one account.");
       return;
@@ -106,14 +166,6 @@ export default function AccountModerationPage() {
     if (!targetIds.length) {
       setNotice("Bulk actions cannot target your own account.");
       return;
-    }
-    if (action === "delete") {
-      const confirmed = window.confirm(
-        "Delete the selected accounts? This will remove all associated data."
-      );
-      if (!confirmed) {
-        return;
-      }
     }
     setIsBulkLoading(true);
     setNotice("");
@@ -128,6 +180,8 @@ export default function AccountModerationPage() {
         await Promise.all(targetIds.map((id) => updateUserStatus(id, "active")));
       } else if (action === "delete") {
         await Promise.all(targetIds.map((id) => deleteUser(id)));
+      } else if (action === "clear-history") {
+        await Promise.all(targetIds.map((id) => clearUserHistory(id)));
       }
       await loadUsers();
       setSelectedIds([]);
@@ -138,6 +192,118 @@ export default function AccountModerationPage() {
       setNotice(err instanceof Error ? err.message : "Bulk action failed.");
     } finally {
       setIsBulkLoading(false);
+    }
+  };
+
+  const requestConfirm = (next: ConfirmState) => {
+    setConfirmState(next);
+  };
+
+  const handleConfirm = async () => {
+    if (!confirmState) {
+      return;
+    }
+    setIsConfirming(true);
+    try {
+      await confirmState.onConfirm();
+      setConfirmState(null);
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const requestBulkAction = (action: BulkAction) => {
+    const descriptions: Record<BulkAction, string> = {
+      "make-admin": "Promote the selected accounts to admin?",
+      "make-user": "Demote the selected accounts to user?",
+      ban: "Ban the selected accounts? They will be unable to log in.",
+      unban: "Unban the selected accounts?",
+      delete: "Delete the selected accounts? This will remove all associated data.",
+      "clear-history": "Clear reading history for the selected accounts?",
+    };
+    const labels: Record<BulkAction, string> = {
+      "make-admin": "Make admin",
+      "make-user": "Make user",
+      ban: "Ban accounts",
+      unban: "Unban accounts",
+      delete: "Delete accounts",
+      "clear-history": "Clear history",
+    };
+    requestConfirm({
+      title: "Confirm action",
+      description: descriptions[action],
+      confirmLabel: labels[action],
+      tone: action === "delete" ? "danger" : undefined,
+      onConfirm: () => applyBulkAction(action),
+    });
+  };
+
+  const requestUserAction = (
+    user: AdminUser,
+    action: "make-admin" | "make-user" | "ban" | "unban" | "delete" | "clear-history"
+  ) => {
+    const label = action === "make-admin" ? "Make admin" :
+      action === "make-user" ? "Make user" :
+      action === "ban" ? "Ban" :
+      action === "unban" ? "Unban" :
+      action === "delete" ? "Delete" : "Clear history";
+    const description =
+      action === "delete"
+        ? "Delete this account? This will remove all associated data."
+        : action === "clear-history"
+          ? "Clear this user's reading history?"
+          : `Apply "${label}" to this account?`;
+    requestConfirm({
+      title: "Confirm action",
+      description,
+      confirmLabel: label,
+      tone: action === "delete" ? "danger" : undefined,
+      onConfirm: async () => {
+        try {
+          if (action === "make-admin") {
+            await updateUserRole(user.id, "admin");
+          } else if (action === "make-user") {
+            await updateUserRole(user.id, "user");
+          } else if (action === "ban") {
+            await updateUserStatus(user.id, "banned");
+          } else if (action === "unban") {
+            await updateUserStatus(user.id, "active");
+          } else if (action === "delete") {
+            await deleteUser(user.id);
+          } else if (action === "clear-history") {
+            await clearUserHistory(user.id);
+          }
+          await loadUsers();
+        } catch (err) {
+          setNotice(err instanceof Error ? err.message : "Action failed.");
+          throw err;
+        }
+      },
+    });
+  };
+
+  const handleUnlock = async () => {
+    setUnlockError("");
+    const trimmed = moderationPassword.trim();
+    if (!trimmed) {
+      setUnlockError("Enter the moderation password.");
+      return;
+    }
+    setIsUnlocking(true);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("moderationPassword", trimmed);
+    }
+    try {
+      await loadUsers();
+      setIsUnlocked(true);
+    } catch (err) {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem("moderationPassword");
+      }
+      setUnlockError(err instanceof Error ? err.message : "Invalid moderation password.");
+      setIsUnlocked(false);
+    } finally {
+      setIsUnlocking(false);
     }
   };
 
@@ -155,6 +321,45 @@ export default function AccountModerationPage() {
               <Button asChild className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90">
                 <a href="/auth/sign-in">Login</a>
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isUnlocked) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <SiteNav />
+        <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center px-6 py-16">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>Moderation access</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Enter the moderation password to manage user accounts.
+              </p>
+              <Input
+                type="password"
+                placeholder="Moderation password"
+                value={moderationPassword}
+                onChange={(event) => setModerationPassword(event.target.value)}
+              />
+              {unlockError && <p className="text-sm text-amber-200">{unlockError}</p>}
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
+                  onClick={handleUnlock}
+                  disabled={isUnlocking}
+                >
+                  {isUnlocking ? "Checking" : "Unlock"}
+                </Button>
+                <Button variant="outline" asChild>
+                  <a href="/blogger-dashboard">Back to dashboard</a>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -203,7 +408,8 @@ export default function AccountModerationPage() {
                   variant="outline"
                   size="sm"
                   disabled={!selectedIds.length || isBulkLoading}
-                  onClick={() => applyBulkAction("make-admin")}
+                  className="w-full sm:w-auto"
+                  onClick={() => requestBulkAction("make-admin")}
                 >
                   Make admin
                 </Button>
@@ -211,7 +417,8 @@ export default function AccountModerationPage() {
                   variant="outline"
                   size="sm"
                   disabled={!selectedIds.length || isBulkLoading}
-                  onClick={() => applyBulkAction("make-user")}
+                  className="w-full sm:w-auto"
+                  onClick={() => requestBulkAction("make-user")}
                 >
                   Make user
                 </Button>
@@ -219,7 +426,8 @@ export default function AccountModerationPage() {
                   variant="outline"
                   size="sm"
                   disabled={!selectedIds.length || isBulkLoading}
-                  onClick={() => applyBulkAction("ban")}
+                  className="w-full sm:w-auto"
+                  onClick={() => requestBulkAction("ban")}
                 >
                   Ban
                 </Button>
@@ -227,16 +435,26 @@ export default function AccountModerationPage() {
                   variant="outline"
                   size="sm"
                   disabled={!selectedIds.length || isBulkLoading}
-                  onClick={() => applyBulkAction("unban")}
+                  className="w-full sm:w-auto"
+                  onClick={() => requestBulkAction("unban")}
                 >
                   Unban
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-red-500 hover:text-red-600"
                   disabled={!selectedIds.length || isBulkLoading}
-                  onClick={() => applyBulkAction("delete")}
+                  className="w-full sm:w-auto"
+                  onClick={() => requestBulkAction("clear-history")}
+                >
+                  Clear history
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto text-red-500 hover:text-red-600"
+                  disabled={!selectedIds.length || isBulkLoading}
+                  onClick={() => requestBulkAction("delete")}
                 >
                   Delete
                 </Button>
@@ -262,12 +480,13 @@ export default function AccountModerationPage() {
                         onChange={() => toggleSelect(user.id)}
                       />
                       <div className="space-y-1">
-                        <p className="text-base font-medium">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                        <p className="text-base font-medium">{maskName(user.name)}</p>
+                        <p className="text-xs text-muted-foreground">{maskEmail(user.email)}</p>
+                        <p className="text-xs text-muted-foreground">User #{user.id}</p>
                         <p className="text-xs text-muted-foreground">Joined {formatDate(user.createdAt)}</p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <div className="flex flex-wrap items-center gap-2 text-sm sm:justify-end">
                       <Badge variant="outline">{user.role}</Badge>
                       <Badge
                         variant={isBanned ? "outline" : "subtle"}
@@ -279,14 +498,8 @@ export default function AccountModerationPage() {
                         variant="outline"
                         size="sm"
                         disabled={isSelf}
-                        onClick={async () => {
-                          try {
-                            await updateUserRole(user.id, nextRole);
-                            await loadUsers();
-                          } catch (err) {
-                            setNotice(err instanceof Error ? err.message : "Failed to update role.");
-                          }
-                        }}
+                        className="w-full sm:w-auto"
+                        onClick={() => requestUserAction(user, nextRole === "admin" ? "make-admin" : "make-user")}
                       >
                         Make {nextRole}
                       </Button>
@@ -294,36 +507,27 @@ export default function AccountModerationPage() {
                         variant="outline"
                         size="sm"
                         disabled={isSelf}
-                        onClick={async () => {
-                          try {
-                            await updateUserStatus(user.id, nextStatus);
-                            await loadUsers();
-                          } catch (err) {
-                            setNotice(err instanceof Error ? err.message : "Failed to update status.");
-                          }
-                        }}
+                        className="w-full sm:w-auto"
+                        onClick={() => requestUserAction(user, isBanned ? "unban" : "ban")}
                       >
                         {isBanned ? "Unban" : "Ban"}
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
+                        disabled={isSelf}
+                        className="w-full sm:w-auto"
+                        onClick={() => requestUserAction(user, "clear-history")}
+                      >
+                        Clear history
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="text-red-500 hover:text-red-600"
                         disabled={isSelf}
-                        onClick={async () => {
-                          const confirmed = window.confirm(
-                            "Delete this account? This will remove all associated data."
-                          );
-                          if (!confirmed) {
-                            return;
-                          }
-                          try {
-                            await deleteUser(user.id);
-                            await loadUsers();
-                          } catch (err) {
-                            setNotice(err instanceof Error ? err.message : "Failed to delete user.");
-                          }
-                        }}
+                        className="w-full sm:w-auto"
+                        onClick={() => requestUserAction(user, "delete")}
                       >
                         Delete
                       </Button>
@@ -370,6 +574,40 @@ export default function AccountModerationPage() {
           </CardContent>
         </Card>
       </main>
+      {confirmState && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-8">
+          <div className="w-full max-w-md">
+            <Card>
+              <CardHeader>
+                <CardTitle>{confirmState.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">{confirmState.description}</p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => setConfirmState(null)}
+                    disabled={isConfirming}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className={
+                      confirmState.tone === "danger"
+                        ? "bg-red-500 text-white hover:bg-red-500/90"
+                        : "bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
+                    }
+                    onClick={handleConfirm}
+                    disabled={isConfirming}
+                  >
+                    {isConfirming ? "Working" : confirmState.confirmLabel}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

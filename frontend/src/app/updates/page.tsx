@@ -9,7 +9,14 @@ import { SiteNav } from "@/components/site/site-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchAnnouncements, fetchNovels, fetchUsers, type AdminNovel, type UserSummary } from "@/lib/api";
+import {
+  fetchAnnouncements,
+  fetchNovels,
+  fetchSiteSettings,
+  fetchUsers,
+  type AdminNovel,
+  type UserSummary,
+} from "@/lib/api";
 
 type Announcement = {
   id: number;
@@ -24,10 +31,10 @@ export default function UpdatesPage() {
   const [novels, setNovels] = useState<AdminNovel[]>([]);
   const [users, setUsers] = useState<UserSummary[]>([]);
 
-  const socialLinks = [
+  const [socialLinks, setSocialLinks] = useState<Array<{ label: string; url: string }>>([
     { label: "Facebook", url: "" },
     { label: "Discord", url: "" },
-  ];
+  ]);
 
   useEffect(() => {
     fetchAnnouncements()
@@ -38,6 +45,14 @@ export default function UpdatesPage() {
       .catch(() => null);
     fetchUsers()
       .then((data) => setUsers(data))
+      .catch(() => null);
+    fetchSiteSettings()
+      .then((settings) =>
+        setSocialLinks([
+          { label: "Facebook", url: settings.facebookUrl || "" },
+          { label: "Discord", url: settings.discordUrl || "" },
+        ])
+      )
       .catch(() => null);
   }, []);
 
@@ -105,8 +120,11 @@ export default function UpdatesPage() {
               )}
               {announcements.map((item) => (
                 <div key={item.id} className="space-y-2 rounded-lg border border-border/40 px-4 py-3">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <MessageSquare className="h-4 w-4" />
+                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      <span>Admin</span>
+                    </div>
                     <span>{new Date(item.createdAt).toLocaleDateString()}</span>
                   </div>
                   <p className="font-medium text-foreground">{item.title}</p>

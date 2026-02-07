@@ -22,7 +22,7 @@ func main() {
 	router := gin.Default()
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowAllOrigins = true
-	corsConfig.AllowHeaders = append(corsConfig.AllowHeaders, "Authorization", "X-API-Key")
+	corsConfig.AllowHeaders = append(corsConfig.AllowHeaders, "Authorization", "X-API-Key", "X-Moderation-Password")
 	router.Use(cors.New(corsConfig))
 	router.Static("/uploads", "./uploads")
 	registerRoutes(router, repo, cfg)

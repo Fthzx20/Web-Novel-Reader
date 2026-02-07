@@ -21,6 +21,7 @@ type NovelInput struct {
 
 type ChapterInput struct {
 	Number  int    `json:"number"`
+	Volume  int    `json:"volume"`
 	Title   string `json:"title"`
 	Content string `json:"content"`
 }
@@ -97,6 +98,18 @@ type SiteSettingsInput struct {
 	SecondaryCta string `json:"secondaryButton"`
 	AccentColor string `json:"accentColor"`
 	HighlightLabel string `json:"highlightLabel"`
+	FacebookUrl string `json:"facebookUrl"`
+	DiscordUrl string `json:"discordUrl"`
+	FooterUpdatesLabel string `json:"footerUpdatesLabel"`
+	FooterUpdatesUrl string `json:"footerUpdatesUrl"`
+	FooterSeriesLabel string `json:"footerSeriesLabel"`
+	FooterSeriesUrl string `json:"footerSeriesUrl"`
+	FooterAdminLabel string `json:"footerAdminLabel"`
+	FooterAdminUrl string `json:"footerAdminUrl"`
+	FooterLink4Label string `json:"footerLink4Label"`
+	FooterLink4Url string `json:"footerLink4Url"`
+	FooterLink5Label string `json:"footerLink5Label"`
+	FooterLink5Url string `json:"footerLink5Url"`
 }
 
 type AnnouncementInput struct {
@@ -299,6 +312,9 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 
 	adminAuthed := router.Group("/")
 	adminAuthed.Use(adminAccess(cfg.APIKey, cfg.JWTSecret, repo))
+
+	moderationAuthed := adminAuthed.Group("/")
+	moderationAuthed.Use(moderationAccess(cfg.ModerationPassword))
 
 	userAuthed := router.Group("/")
 	userAuthed.Use(userAuth(cfg.JWTSecret, repo))
@@ -787,11 +803,11 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 		c.JSON(http.StatusOK, repo.ListUsers())
 	})
 
-	adminAuthed.GET("/admin/users", func(c *gin.Context) {
+	moderationAuthed.GET("/admin/users", func(c *gin.Context) {
 		c.JSON(http.StatusOK, repo.ListAuthUsers())
 	})
 
-	adminAuthed.PUT("/admin/users/:id/role", func(c *gin.Context) {
+	moderationAuthed.PUT("/admin/users/:id/role", func(c *gin.Context) {
 		userID := parseID(c.Param("id"))
 		if userID <= 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
@@ -828,7 +844,7 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 		c.JSON(http.StatusOK, user)
 	})
 
-	adminAuthed.PUT("/admin/users/:id/status", func(c *gin.Context) {
+	moderationAuthed.PUT("/admin/users/:id/status", func(c *gin.Context) {
 		userID := parseID(c.Param("id"))
 		if userID <= 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
@@ -865,7 +881,7 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 		c.JSON(http.StatusOK, user)
 	})
 
-	adminAuthed.DELETE("/admin/users/:id", func(c *gin.Context) {
+	moderationAuthed.DELETE("/admin/users/:id", func(c *gin.Context) {
 		userID := parseID(c.Param("id"))
 		if userID <= 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
@@ -882,6 +898,19 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 		}
 		if err := repo.DeleteAuthUser(userID); err != nil {
 			respondNotFound(c, err)
+			return
+		}
+		c.Status(http.StatusNoContent)
+	})
+
+	moderationAuthed.DELETE("/admin/users/:id/history", func(c *gin.Context) {
+		userID := parseID(c.Param("id"))
+		if userID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+			return
+		}
+		if err := repo.ClearReadingHistory(userID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		c.Status(http.StatusNoContent)
@@ -909,6 +938,21 @@ func apiKeyAuth(apiKey string) gin.HandlerFunc {
 			return
 		}
 		if c.GetHeader("X-API-Key") != apiKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+func moderationAccess(password string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if strings.TrimSpace(password) == "" {
+			c.Next()
+			return
+		}
+		if c.GetHeader("X-Moderation-Password") != password {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			c.Abort()
 			return
