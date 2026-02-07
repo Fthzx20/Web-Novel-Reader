@@ -56,6 +56,7 @@ type AuthUser struct {
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
 	Role         string    `json:"role"`
+	Status       string    `json:"status"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
 
@@ -117,6 +118,12 @@ type ModerationReport struct {
 	NovelTitle string    `json:"novelTitle"`
 	Note       string    `json:"note"`
 	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type NovelChapterStat struct {
+	NovelID         int `json:"novelId"`
+	ChapterCount    int `json:"chapterCount"`
+	LatestChapterID int `json:"latestChapterId"`
 }
 
 type Illustration struct {

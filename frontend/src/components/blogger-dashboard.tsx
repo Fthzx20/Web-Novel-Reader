@@ -42,10 +42,11 @@ import {
 import {
   createNovelAdmin,
   deleteNovelAdmin,
-  fetchChaptersByNovel,
   fetchComments,
   fetchNovelsAdmin,
+  fetchNovelStats,
   fetchSiteSettings,
+  fetchUsers,
   uploadNovelCover,
   type AdminNovel,
 } from "@/lib/api";
@@ -90,32 +91,37 @@ export function BloggerDashboard() {
   const [newStatus, setNewStatus] = useState("Ongoing");
   const [newPostNotice, setNewPostNotice] = useState("");
   const [siteLogoUrl, setSiteLogoUrl] = useState("");
+  const [usersCount, setUsersCount] = useState(0);
   const statusOptions = ["Hiatus", "Completed", "Ongoing", "Axed", "Dropped"];
 
   const loadDashboardData = async () => {
     setNotice("");
     try {
-      const data = await fetchNovelsAdmin();
+      const [data, stats] = await Promise.all([fetchNovelsAdmin(), fetchNovelStats()]);
       setNovels(data);
 
-      const chapterResults = await Promise.all(
-        data.map((novel) => fetchChaptersByNovel(novel.id).catch(() => []))
-      );
       const counts: Record<number, number> = {};
-      const latestChapterIds: number[] = [];
-      chapterResults.forEach((chapters, index) => {
-        counts[data[index].id] = chapters.length;
-        const latest = chapters[chapters.length - 1];
-        if (latest) {
-          latestChapterIds.push(latest.id);
+      const latestChapterIdsByNovel: Record<number, number> = {};
+      stats.forEach((stat) => {
+        counts[stat.novelId] = stat.chapterCount;
+        if (stat.latestChapterId) {
+          latestChapterIdsByNovel[stat.novelId] = stat.latestChapterId;
         }
       });
       setChapterCounts(counts);
 
+      const recentNovels = [...data].sort((a, b) => {
+        const aTime = Date.parse(a.updatedAt);
+        const bTime = Date.parse(b.updatedAt);
+        return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+      });
+      const recentChapterIds = recentNovels
+        .map((novel) => latestChapterIdsByNovel[novel.id])
+        .filter((id): id is number => Boolean(id))
+        .slice(0, 3);
+
       const commentBatches = await Promise.all(
-        latestChapterIds.slice(0, 3).map((chapterId) =>
-          fetchComments(chapterId).catch(() => [])
-        )
+        recentChapterIds.map((chapterId) => fetchComments(chapterId).catch(() => []))
       );
       const flattened = commentBatches.flat().slice(0, 3).map((comment) => ({
         author: `Reader ${comment.userId}`,
@@ -134,6 +140,9 @@ export function BloggerDashboard() {
     void loadDashboardData();
     fetchSiteSettings()
       .then((settings) => setSiteLogoUrl(settings.logoUrl || ""))
+      .catch(() => null);
+    fetchUsers()
+      .then((users) => setUsersCount(users.length))
       .catch(() => null);
   }, []);
 
@@ -281,10 +290,10 @@ export function BloggerDashboard() {
                     <MessageSquare className="h-4 w-4" />
                     Comments
                   </div>
-                  <div className="flex items-center gap-2">
+                  <Link href="/blogger-dashboard/moderation" className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
-                    Audience
-                  </div>
+                    Account moderation
+                  </Link>
                   <Link href="/blogger-dashboard/settings" className="flex items-center gap-2">
                     <Settings className="h-4 w-4" />
                     Website settings
@@ -382,6 +391,10 @@ export function BloggerDashboard() {
                     <div className="flex items-center gap-2 text-foreground">
                       <TrendingUp className="h-4 w-4 text-amber-200" />
                       {novels.length} active series
+                    </div>
+                    <div className="flex items-center gap-2 text-foreground">
+                      <Users className="h-4 w-4 text-amber-200" />
+                      {usersCount} registered users
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">

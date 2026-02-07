@@ -110,6 +110,7 @@ func (s *Store) CreateAuthUser(input AuthRegisterInput) (*AuthUser, error) {
 		Email:        email,
 		PasswordHash: hash,
 		Role:         role,
+		Status:       "active",
 		CreatedAt:    time.Now(),
 	}
 	s.authUsers[user.ID] = user
@@ -134,6 +135,61 @@ func (s *Store) GetAuthUserByEmail(email string) (*AuthUser, error) {
 		return nil, errNotFound
 	}
 	return user, nil
+}
+
+func (s *Store) GetAuthUserByID(id int) (*AuthUser, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	user, ok := s.authUsers[id]
+	if !ok {
+		return nil, errNotFound
+	}
+	return user, nil
+}
+
+func (s *Store) ListAuthUsers() []*AuthUser {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	items := make([]*AuthUser, 0, len(s.authUsers))
+	for _, user := range s.authUsers {
+		items = append(items, user)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	return items
+}
+
+func (s *Store) UpdateAuthUserRole(id int, role string) (*AuthUser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.authUsers[id]
+	if !ok {
+		return nil, errNotFound
+	}
+	user.Role = strings.TrimSpace(role)
+	return user, nil
+}
+
+func (s *Store) UpdateAuthUserStatus(id int, status string) (*AuthUser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.authUsers[id]
+	if !ok {
+		return nil, errNotFound
+	}
+	user.Status = strings.TrimSpace(status)
+	return user, nil
+}
+
+func (s *Store) DeleteAuthUser(id int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.authUsers[id]
+	if !ok {
+		return errNotFound
+	}
+	delete(s.authUsersByEmail, normalizeEmail(user.Email))
+	delete(s.authUsers, id)
+	return nil
 }
 
 func (s *Store) ListReadingHistory(userID int) []*ReadingHistory {
@@ -474,6 +530,29 @@ func (s *Store) CreateChapter(novelID int, input ChapterInput) (*Chapter, error)
 	return chapter, nil
 }
 
+func (s *Store) ListNovelChapterStats() []*NovelChapterStat {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	statsByNovel := make(map[int]*NovelChapterStat)
+	for _, chapter := range s.chapters {
+		stat, ok := statsByNovel[chapter.NovelID]
+		if !ok {
+			stat = &NovelChapterStat{NovelID: chapter.NovelID}
+			statsByNovel[chapter.NovelID] = stat
+		}
+		stat.ChapterCount++
+		if chapter.ID > stat.LatestChapterID {
+			stat.LatestChapterID = chapter.ID
+		}
+	}
+	items := make([]*NovelChapterStat, 0, len(statsByNovel))
+	for _, stat := range statsByNovel {
+		items = append(items, stat)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].NovelID < items[j].NovelID })
+	return items
+}
+
 func (s *Store) UpdateChapter(id int, input ChapterInput) (*Chapter, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -576,9 +655,14 @@ func (s *Store) CreateRating(novelID int, input RatingInput) (*Rating, error) {
 func (s *Store) ListUsers() []*User {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	items := make([]*User, 0, len(s.users))
-	for _, user := range s.users {
-		items = append(items, user)
+	items := make([]*User, 0, len(s.authUsers))
+	for _, user := range s.authUsers {
+		items = append(items, &User{
+			ID:        user.ID,
+			Name:      user.Name,
+			Role:      user.Role,
+			CreatedAt: user.CreatedAt,
+		})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 	return items

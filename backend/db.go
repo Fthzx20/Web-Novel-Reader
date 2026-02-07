@@ -33,6 +33,7 @@ func RunMigrations(db *sql.DB) error {
 			email TEXT NOT NULL UNIQUE,
 			password_hash TEXT NOT NULL,
 			role TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'active',
 			created_at TIMESTAMPTZ NOT NULL
 		)`,
 		`CREATE TABLE IF NOT EXISTS novels (
@@ -138,6 +139,7 @@ func RunMigrations(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS comments_chapter_id_idx ON comments(chapter_id)`,
 		`CREATE INDEX IF NOT EXISTS ratings_novel_id_idx ON ratings(novel_id)`,
 		`CREATE INDEX IF NOT EXISTS follows_user_id_idx ON follows(user_id)`,
+		`ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`,
 		`CREATE INDEX IF NOT EXISTS bookmarks_user_id_idx ON bookmarks(user_id)`,
 		`CREATE INDEX IF NOT EXISTS announcements_created_at_idx ON announcements(created_at)`,
 		`CREATE INDEX IF NOT EXISTS release_queue_created_at_idx ON release_queue(created_at)`,

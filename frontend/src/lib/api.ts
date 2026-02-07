@@ -49,6 +49,7 @@ export type AuthUser = {
   name: string;
   email: string;
   role: string;
+  status: string;
   createdAt: string;
 };
 
@@ -95,6 +96,28 @@ export type ModerationReport = {
   createdAt: string;
 };
 
+export type UserSummary = {
+  id: number;
+  name: string;
+  role: string;
+  createdAt: string;
+};
+
+export type AdminUser = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  createdAt: string;
+};
+
+export type NovelChapterStat = {
+  novelId: number;
+  chapterCount: number;
+  latestChapterId: number;
+};
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? "";
 
@@ -128,6 +151,14 @@ export async function fetchNovelsAdmin(): Promise<AdminNovel[]> {
     throw new Error(await getErrorMessage(response, "Failed to load novels"));
   }
   return (await response.json()) as AdminNovel[];
+}
+
+export async function fetchNovelStats(): Promise<NovelChapterStat[]> {
+  const response = await fetch(`${API_BASE}/novels/stats`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load novel stats"));
+  }
+  return (await response.json()) as NovelChapterStat[];
 }
 
 export async function fetchNovel(id: number): Promise<AdminNovel> {
@@ -219,6 +250,69 @@ export async function fetchModerationReports(): Promise<ModerationReport[]> {
     throw new Error(await getErrorMessage(response, "Failed to load reports"));
   }
   return (await response.json()) as ModerationReport[];
+}
+
+export async function fetchAdminUsers(): Promise<AdminUser[]> {
+  const response = await fetch(`${API_BASE}/admin/users`, {
+    headers: {
+      ...adminHeaders(),
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load users"));
+  }
+  return (await response.json()) as AdminUser[];
+}
+
+export async function updateUserRole(id: number, role: string): Promise<AdminUser> {
+  const response = await fetch(`${API_BASE}/admin/users/${id}/role`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...adminHeaders(),
+    },
+    body: JSON.stringify({ role }),
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to update role"));
+  }
+  return (await response.json()) as AdminUser;
+}
+
+export async function updateUserStatus(id: number, status: string): Promise<AdminUser> {
+  const response = await fetch(`${API_BASE}/admin/users/${id}/status`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...adminHeaders(),
+    },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to update status"));
+  }
+  return (await response.json()) as AdminUser;
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/admin/users/${id}`, {
+    method: "DELETE",
+    headers: {
+      ...adminHeaders(),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to delete user"));
+  }
+}
+
+export async function fetchUsers(): Promise<UserSummary[]> {
+  const response = await fetch(`${API_BASE}/users`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load users"));
+  }
+  return (await response.json()) as UserSummary[];
 }
 
 export async function deleteModerationReport(id: number): Promise<void> {

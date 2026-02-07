@@ -41,6 +41,14 @@ type UserInput struct {
 	Role string `json:"role"`
 }
 
+type UserRoleInput struct {
+	Role string `json:"role"`
+}
+
+type UserStatusInput struct {
+	Status string `json:"status"`
+}
+
 type AuthRegisterInput struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
@@ -58,6 +66,7 @@ type AuthUserInfo struct {
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
 	Role      string    `json:"role"`
+	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -168,6 +177,10 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 			return
 		}
+		if strings.EqualFold(user.Status, "banned") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "account banned"})
+			return
+		}
 		token, err := generateToken(user.ID, user.Role, cfg.JWTSecret, cfg.JWTTTL)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -231,11 +244,15 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 		c.JSON(http.StatusOK, items[start:end])
 	})
 
+	router.GET("/novels/stats", func(c *gin.Context) {
+		c.JSON(http.StatusOK, repo.ListNovelChapterStats())
+	})
+
 	adminAuthed := router.Group("/")
-	adminAuthed.Use(adminAccess(cfg.APIKey, cfg.JWTSecret))
+	adminAuthed.Use(adminAccess(cfg.APIKey, cfg.JWTSecret, repo))
 
 	userAuthed := router.Group("/")
-	userAuthed.Use(userAuth(cfg.JWTSecret))
+	userAuthed.Use(userAuth(cfg.JWTSecret, repo))
 
 	adminAuthed.POST("/novels", func(c *gin.Context) {
 		var input NovelInput
@@ -721,6 +738,69 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 		c.JSON(http.StatusOK, repo.ListUsers())
 	})
 
+	adminAuthed.GET("/admin/users", func(c *gin.Context) {
+		c.JSON(http.StatusOK, repo.ListAuthUsers())
+	})
+
+	adminAuthed.PUT("/admin/users/:id/role", func(c *gin.Context) {
+		userID := parseID(c.Param("id"))
+		if userID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+			return
+		}
+		var input UserRoleInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if strings.TrimSpace(input.Role) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "role is required"})
+			return
+		}
+		user, err := repo.UpdateAuthUserRole(userID, input.Role)
+		if err != nil {
+			respondNotFound(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, user)
+	})
+
+	adminAuthed.PUT("/admin/users/:id/status", func(c *gin.Context) {
+		userID := parseID(c.Param("id"))
+		if userID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+			return
+		}
+		var input UserStatusInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if strings.TrimSpace(input.Status) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "status is required"})
+			return
+		}
+		user, err := repo.UpdateAuthUserStatus(userID, input.Status)
+		if err != nil {
+			respondNotFound(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, user)
+	})
+
+	adminAuthed.DELETE("/admin/users/:id", func(c *gin.Context) {
+		userID := parseID(c.Param("id"))
+		if userID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+			return
+		}
+		if err := repo.DeleteAuthUser(userID); err != nil {
+			respondNotFound(c, err)
+			return
+		}
+		c.Status(http.StatusNoContent)
+	})
+
 	adminAuthed.POST("/users", func(c *gin.Context) {
 		var input UserInput
 		if err := c.ShouldBindJSON(&input); err != nil {
@@ -751,7 +831,7 @@ func apiKeyAuth(apiKey string) gin.HandlerFunc {
 	}
 }
 
-func adminAccess(apiKey string, secret string) gin.HandlerFunc {
+func adminAccess(apiKey string, secret string, repo Repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if apiKey != "" && c.GetHeader("X-API-Key") == apiKey {
 			c.Next()
@@ -760,11 +840,24 @@ func adminAccess(apiKey string, secret string) gin.HandlerFunc {
 		header := c.GetHeader("Authorization")
 		if strings.HasPrefix(header, "Bearer ") {
 			claims, err := parseToken(strings.TrimPrefix(header, "Bearer "), secret)
-			if err == nil && claims.Role == "admin" {
-				c.Set("userID", claims.UserID)
-				c.Set("role", claims.Role)
-				c.Next()
-				return
+			if err == nil {
+				user, userErr := repo.GetAuthUserByID(claims.UserID)
+				if userErr != nil {
+					c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+					c.Abort()
+					return
+				}
+				if strings.EqualFold(user.Status, "banned") {
+					c.JSON(http.StatusForbidden, gin.H{"error": "account banned"})
+					c.Abort()
+					return
+				}
+				if user.Role == "admin" {
+					c.Set("userID", user.ID)
+					c.Set("role", user.Role)
+					c.Next()
+					return
+				}
 			}
 		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -772,7 +865,7 @@ func adminAccess(apiKey string, secret string) gin.HandlerFunc {
 	}
 }
 
-func userAuth(secret string) gin.HandlerFunc {
+func userAuth(secret string, repo Repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") {
@@ -786,8 +879,19 @@ func userAuth(secret string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		c.Set("userID", claims.UserID)
-		c.Set("role", claims.Role)
+		user, userErr := repo.GetAuthUserByID(claims.UserID)
+		if userErr != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			c.Abort()
+			return
+		}
+		if strings.EqualFold(user.Status, "banned") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "account banned"})
+			c.Abort()
+			return
+		}
+		c.Set("userID", user.ID)
+		c.Set("role", user.Role)
 		c.Next()
 	}
 }

@@ -437,7 +437,23 @@ func (r *AppRepository) CreateRating(novelID int, input RatingInput) (*Rating, e
 }
 
 func (r *AppRepository) ListUsers() []*User {
-	return r.store.ListUsers()
+	rows, err := r.db.Query(
+		`SELECT id, name, role, created_at FROM auth_users ORDER BY id`,
+	)
+	if err != nil {
+		return []*User{}
+	}
+	defer rows.Close()
+
+	items := make([]*User, 0)
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Name, &user.Role, &user.CreatedAt); err != nil {
+			continue
+		}
+		items = append(items, &user)
+	}
+	return items
 }
 
 func (r *AppRepository) CreateUser(name, role string) (*User, error) {
@@ -468,20 +484,22 @@ func (r *AppRepository) CreateAuthUser(input AuthRegisterInput) (*AuthUser, erro
 	if strings.TrimSpace(input.Role) != "" {
 		role = strings.TrimSpace(input.Role)
 	}
+	status := "active"
 	createdAt := time.Now()
 
 	var user AuthUser
 	user.Role = role
+	user.Status = status
 	user.CreatedAt = createdAt
 	user.Email = email
 	user.Name = name
 	user.PasswordHash = hash
 
 	err = r.db.QueryRow(
-		`INSERT INTO auth_users (name, email, password_hash, role, created_at)
-		 VALUES ($1, $2, $3, $4, $5)
+		`INSERT INTO auth_users (name, email, password_hash, role, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6)
 		 RETURNING id`,
-		name, email, hash, role, createdAt,
+		name, email, hash, role, status, createdAt,
 	).Scan(&user.ID)
 	if err != nil {
 		return nil, err
@@ -496,10 +514,10 @@ func (r *AppRepository) GetAuthUserByEmail(email string) (*AuthUser, error) {
 	}
 	var user AuthUser
 	err := r.db.QueryRow(
-		`SELECT id, name, email, password_hash, role, created_at
+		`SELECT id, name, email, password_hash, role, status, created_at
 		 FROM auth_users WHERE email = $1`,
 		key,
-	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.CreatedAt)
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.Status, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errNotFound
@@ -507,6 +525,101 @@ func (r *AppRepository) GetAuthUserByEmail(email string) (*AuthUser, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *AppRepository) GetAuthUserByID(id int) (*AuthUser, error) {
+	if id <= 0 {
+		return nil, errNotFound
+	}
+	var user AuthUser
+	err := r.db.QueryRow(
+		`SELECT id, name, email, password_hash, role, status, created_at
+		 FROM auth_users WHERE id = $1`,
+		id,
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.Status, &user.CreatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *AppRepository) ListAuthUsers() []*AuthUser {
+	rows, err := r.db.Query(
+		`SELECT id, name, email, role, status, created_at FROM auth_users ORDER BY id`,
+	)
+	if err != nil {
+		return []*AuthUser{}
+	}
+	defer rows.Close()
+
+	items := make([]*AuthUser, 0)
+	for rows.Next() {
+		var user AuthUser
+		if err := rows.Scan(&user.ID, &user.Name, &user.Email, &user.Role, &user.Status, &user.CreatedAt); err != nil {
+			continue
+		}
+		items = append(items, &user)
+	}
+	return items
+}
+
+func (r *AppRepository) UpdateAuthUserRole(id int, role string) (*AuthUser, error) {
+	if id <= 0 {
+		return nil, errNotFound
+	}
+	var user AuthUser
+	err := r.db.QueryRow(
+		`UPDATE auth_users SET role = $1 WHERE id = $2
+		 RETURNING id, name, email, password_hash, role, status, created_at`,
+		strings.TrimSpace(role), id,
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.Status, &user.CreatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *AppRepository) UpdateAuthUserStatus(id int, status string) (*AuthUser, error) {
+	if id <= 0 {
+		return nil, errNotFound
+	}
+	var user AuthUser
+	err := r.db.QueryRow(
+		`UPDATE auth_users SET status = $1 WHERE id = $2
+		 RETURNING id, name, email, password_hash, role, status, created_at`,
+		strings.TrimSpace(status), id,
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.Status, &user.CreatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *AppRepository) DeleteAuthUser(id int) error {
+	if id <= 0 {
+		return errNotFound
+	}
+	result, err := r.db.Exec(`DELETE FROM auth_users WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return errNotFound
+	}
+	return nil
 }
 
 func (r *AppRepository) ListReadingHistory(userID int) []*ReadingHistory {
@@ -1035,4 +1148,26 @@ func (r *AppRepository) CreateIllustration(input IllustrationInput) (*Illustrati
 		return nil, err
 	}
 	return illustration, nil
+}
+
+func (r *AppRepository) ListNovelChapterStats() []*NovelChapterStat {
+	rows, err := r.db.Query(
+		`SELECT novel_id, COUNT(*) AS chapter_count, COALESCE(MAX(id), 0) AS latest_chapter_id
+		 FROM chapters
+		 GROUP BY novel_id`,
+	)
+	if err != nil {
+		return []*NovelChapterStat{}
+	}
+	defer rows.Close()
+
+	items := make([]*NovelChapterStat, 0)
+	for rows.Next() {
+		var stat NovelChapterStat
+		if err := rows.Scan(&stat.NovelID, &stat.ChapterCount, &stat.LatestChapterID); err != nil {
+			continue
+		}
+		items = append(items, &stat)
+	}
+	return items
 }
