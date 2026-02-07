@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, BookmarkCheck } from "lucide-react";
+import { ArrowDown, ArrowUp, BookmarkCheck, ChevronDown } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteNav } from "@/components/site/site-nav";
@@ -22,6 +22,14 @@ import {
   type AdminNovel,
 } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
+import { resolveAssetUrl } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/plate/components/ui/dropdown-menu";
 
 type ChapterItem = {
   id: number;
@@ -46,9 +54,12 @@ export default function EditNovelPage() {
   const [synopsis, setSynopsis] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [notice, setNotice] = useState("");
+  const [metadataOpen, setMetadataOpen] = useState(true);
+  const statusOptions = ["Hiatus", "Completed", "Ongoing", "Axed", "Dropped"];
   const [chapters, setChapters] = useState<ChapterItem[]>(
     []
   );
+  const resolvedCoverUrl = coverUrl ? resolveAssetUrl(coverUrl) : "";
 
   useEffect(() => {
     const session = loadSession();
@@ -152,119 +163,164 @@ export default function EditNovelPage() {
             Adjust metadata, reorder chapters, or archive the translation.
           </p>
         </div>
-        <div className="mt-10 grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Project metadata</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {notice && <p className="text-sm text-amber-200">{notice}</p>}
-              <Input placeholder="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
-              <Input placeholder="Author" value={author} onChange={(event) => setAuthor(event.target.value)} />
-              <Input placeholder="Slug" value={slug} onChange={(event) => setSlug(event.target.value)} />
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={async (event) => {
-                  const file = event.target.files?.[0];
-                  if (!file) {
-                    return;
-                  }
-                  try {
-                    const uploadedUrl = await uploadNovelCover(file);
-                    setCoverUrl(uploadedUrl);
-                    setNotice("Cover uploaded.");
-                  } catch (err) {
-                    setNotice(err instanceof Error ? err.message : "Cover upload failed.");
-                  }
-                }}
-              />
-              <Input placeholder="Cover URL" value={coverUrl} onChange={(event) => setCoverUrl(event.target.value)} />
-              <Input placeholder="Tags" value={tags} onChange={(event) => setTags(event.target.value)} />
-              <Textarea placeholder="Synopsis" value={synopsis} onChange={(event) => setSynopsis(event.target.value)} />
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  className="gap-2"
-                  onClick={async () => {
-                    if (!title.trim()) {
-                      setNotice("Title is required.");
-                      return;
-                    }
-                    try {
-                      await updateNovelAdmin(novelId, {
-                        title,
-                        author,
-                        summary: synopsis || "No summary provided.",
-                        tags: tags
-                          .split(",")
-                          .map((item) => item.trim())
-                          .filter(Boolean),
-                        status: status.toLowerCase(),
-                        slug: slug.trim() || undefined,
-                        coverUrl,
-                      });
-                      setNotice("Updated successfully.");
-                    } catch (err) {
-                      setNotice(err instanceof Error ? err.message : "Update failed.");
-                    }
-                  }}
-                >
-                  <BookmarkCheck className="h-4 w-4" />
-                  Update project
-                </Button>
-                <Button
-                  variant={status === "Hiatus" ? "secondary" : "outline"}
-                  onClick={() =>
-                    setStatus((current) =>
-                      current === "Hiatus" ? "Ongoing" : "Hiatus"
-                    )
-                  }
-                >
-                  {status === "Hiatus" ? "Resume" : "Set hiatus"}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="text-red-500 hover:text-red-600"
-                  onClick={async () => {
-                    if (!novelId) {
-                      return;
-                    }
-                    const confirmed = window.confirm(
-                      "Delete this project? This will remove the novel and all chapters."
-                    );
-                    if (!confirmed) {
-                      return;
-                    }
-                    try {
-                      await deleteNovelAdmin(novelId);
-                      router.push("/admin");
-                    } catch (err) {
-                      setNotice(err instanceof Error ? err.message : "Delete failed.");
-                    }
-                  }}
-                >
-                  Delete project
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="mt-10 space-y-6">
           <Card className="border-amber-200/40">
             <CardHeader>
               <CardTitle>Project status</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p className="text-base font-semibold text-foreground">
-                {novel?.title ?? "Loading..."}
-              </p>
-              <p>
-                {author || "Unknown author"} · {status}
-              </p>
-              <p>
-                Latest chapter:{" "}
-                {chapters.length
-                  ? Math.max(...chapters.map((chapter) => chapter.number))
-                  : "-"}
-              </p>
+            <CardContent className="flex flex-wrap items-start justify-between gap-6 text-sm text-muted-foreground">
+              <div className="space-y-3">
+                <p className="text-base font-semibold text-foreground">
+                  {novel?.title ?? "Loading..."}
+                </p>
+                <p>
+                  {author || "Unknown author"} · {status}
+                </p>
+                <p>
+                  Latest chapter:{" "}
+                  {chapters.length
+                    ? Math.max(...chapters.map((chapter) => chapter.number))
+                    : "-"}
+                </p>
+              </div>
+              <div className="h-40 w-28 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-card/60">
+                {resolvedCoverUrl ? (
+                  <img
+                    src={resolvedCoverUrl}
+                    alt={novel?.title ?? "Novel cover"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
+                    No cover
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Project metadata</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => setMetadataOpen((current) => !current)}
+              >
+                {metadataOpen ? "Hide" : "Show"} metadata
+              </Button>
+            </CardHeader>
+            {metadataOpen && (
+              <CardContent className="space-y-4">
+                {notice && <p className="text-sm text-amber-200">{notice}</p>}
+                <Input placeholder="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
+                <Input placeholder="Author" value={author} onChange={(event) => setAuthor(event.target.value)} />
+                <Input placeholder="Slug" value={slug} onChange={(event) => setSlug(event.target.value)} />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) {
+                      return;
+                    }
+                    try {
+                      const uploadedUrl = await uploadNovelCover(file);
+                      setCoverUrl(uploadedUrl);
+                      setNotice("Cover uploaded.");
+                    } catch (err) {
+                      setNotice(err instanceof Error ? err.message : "Cover upload failed.");
+                    }
+                  }}
+                />
+                <Input placeholder="Tags" value={tags} onChange={(event) => setTags(event.target.value)} />
+                <Textarea placeholder="Synopsis" value={synopsis} onChange={(event) => setSynopsis(event.target.value)} />
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    className="gap-2"
+                    onClick={async () => {
+                      if (!title.trim()) {
+                        setNotice("Title is required.");
+                        return;
+                      }
+                      try {
+                        await updateNovelAdmin(novelId, {
+                          title,
+                          author,
+                          summary: synopsis || "No summary provided.",
+                          tags: tags
+                            .split(",")
+                            .map((item) => item.trim())
+                            .filter(Boolean),
+                          status: status.toLowerCase(),
+                          slug: slug.trim() || undefined,
+                          coverUrl,
+                        });
+                        setNotice("Updated successfully.");
+                      } catch (err) {
+                        setNotice(err instanceof Error ? err.message : "Update failed.");
+                      }
+                    }}
+                  >
+                    <BookmarkCheck className="h-4 w-4" />
+                    Update project
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        Status: {status}
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="min-w-[180px]">
+                      <DropdownMenuRadioGroup
+                        value={status}
+                        onValueChange={(value) => setStatus(value)}
+                      >
+                        {statusOptions.map((option) => (
+                          <DropdownMenuRadioItem key={option} value={option}>
+                            {option}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant="outline"
+                    className="text-red-500 hover:text-red-600"
+                    onClick={async () => {
+                      if (!novelId) {
+                        return;
+                      }
+                      const confirmed = window.confirm(
+                        "Delete this project? This will remove the novel and all chapters."
+                      );
+                      if (!confirmed) {
+                        return;
+                      }
+                      try {
+                        await deleteNovelAdmin(novelId);
+                        router.push("/admin");
+                      } catch (err) {
+                        setNotice(err instanceof Error ? err.message : "Delete failed.");
+                      }
+                    }}
+                  >
+                    Delete project
+                  </Button>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+          <Card className="border-border/60 bg-card/80">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Write chapter</CardTitle>
+              <Button variant="outline" size="sm" disabled>
+                Rich text editor (soon)
+              </Button>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Draft new chapters here once the rich text editor is ready.
             </CardContent>
           </Card>
         </div>

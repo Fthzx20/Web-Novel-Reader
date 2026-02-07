@@ -257,6 +257,16 @@ export default function AdminPage() {
                     Site settings
                   </a>
                 </Button>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  asChild
+                >
+                  <Link href="/blogger-dashboard">
+                    <LayoutGrid className="h-4 w-4" />
+                    Blogger dashboard
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           </aside>
