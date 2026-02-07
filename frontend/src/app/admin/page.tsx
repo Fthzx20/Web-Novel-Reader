@@ -1,24 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useAuthSession } from "@/lib/use-auth-session";
 
 import { BloggerDashboard } from "@/components/blogger-dashboard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SiteNav } from "@/components/site/site-nav";
-import { loadSession, type AuthSession } from "@/lib/auth";
 
 export default function AdminPage() {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [checked, setChecked] = useState(false);
+  const session = useAuthSession();
   const isAdmin = session?.user.role === "admin";
 
-  useEffect(() => {
-    setSession(loadSession());
-    setChecked(true);
-  }, []);
+  if (session === undefined) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <SiteNav />
+        <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center px-6 py-16">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>Admin dashboard</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Loading session...
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
-  if (checked && !isAdmin) {
+  if (!isAdmin) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <SiteNav />

@@ -18,7 +18,7 @@ export function ImageElementStatic(
           style={{ textAlign: align }}
         >
           <img
-            alt={(props.attributes as any).alt}
+            alt={(props.attributes as { alt?: string }).alt}
             className={cn(
               'w-full max-w-full cursor-default object-cover px-0',
               'rounded-sm'

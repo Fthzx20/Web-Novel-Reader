@@ -12,53 +12,53 @@ var errNotFound = errors.New("not found")
 var errConflict = errors.New("conflict")
 
 type Store struct {
-	mu            sync.RWMutex
-	nextNovelID   int
-	nextChapterID int
-	nextCommentID int
-	nextRatingID  int
-	nextUserID    int
-	nextAuthUserID int
-	nextHistoryID int
-	nextFollowID int
-	nextBookmarkID int
-	novels        map[int]*Novel
-	chapters      map[int]*Chapter
-	comments      map[int]*Comment
-	ratings       map[int]*Rating
-	users         map[int]*User
-	authUsers     map[int]*AuthUser
-	authUsersByEmail map[string]int
-	history       map[int]*ReadingHistory
-	follows       map[int]*Follow
-	bookmarks     map[int]*Bookmark
-	settings      *SiteSettings
-	announcements map[int]*Announcement
+	mu                 sync.RWMutex
+	nextNovelID        int
+	nextChapterID      int
+	nextCommentID      int
+	nextRatingID       int
+	nextUserID         int
+	nextAuthUserID     int
+	nextHistoryID      int
+	nextFollowID       int
+	nextBookmarkID     int
+	novels             map[int]*Novel
+	chapters           map[int]*Chapter
+	comments           map[int]*Comment
+	ratings            map[int]*Rating
+	users              map[int]*User
+	authUsers          map[int]*AuthUser
+	authUsersByEmail   map[string]int
+	history            map[int]*ReadingHistory
+	follows            map[int]*Follow
+	bookmarks          map[int]*Bookmark
+	settings           *SiteSettings
+	announcements      map[int]*Announcement
 	nextAnnouncementID int
 }
 
 func NewStore() *Store {
 	s := &Store{
-		nextNovelID:   1,
-		nextChapterID: 1,
-		nextCommentID: 1,
-		nextRatingID:  1,
-		nextUserID:    1,
-		nextAuthUserID: 1,
-		nextHistoryID: 1,
-		nextFollowID: 1,
-		nextBookmarkID: 1,
-		novels:        make(map[int]*Novel),
-		chapters:      make(map[int]*Chapter),
-		comments:      make(map[int]*Comment),
-		ratings:       make(map[int]*Rating),
-		users:         make(map[int]*User),
-		authUsers:     make(map[int]*AuthUser),
-		authUsersByEmail: make(map[string]int),
-		history:       make(map[int]*ReadingHistory),
-		follows:       make(map[int]*Follow),
-		bookmarks:     make(map[int]*Bookmark),
-		announcements: make(map[int]*Announcement),
+		nextNovelID:        1,
+		nextChapterID:      1,
+		nextCommentID:      1,
+		nextRatingID:       1,
+		nextUserID:         1,
+		nextAuthUserID:     1,
+		nextHistoryID:      1,
+		nextFollowID:       1,
+		nextBookmarkID:     1,
+		novels:             make(map[int]*Novel),
+		chapters:           make(map[int]*Chapter),
+		comments:           make(map[int]*Comment),
+		ratings:            make(map[int]*Rating),
+		users:              make(map[int]*User),
+		authUsers:          make(map[int]*AuthUser),
+		authUsersByEmail:   make(map[string]int),
+		history:            make(map[int]*ReadingHistory),
+		follows:            make(map[int]*Follow),
+		bookmarks:          make(map[int]*Bookmark),
+		announcements:      make(map[int]*Announcement),
 		nextAnnouncementID: 1,
 	}
 	s.seed()
@@ -329,30 +329,30 @@ func (s *Store) GetSiteSettings() (*SiteSettings, error) {
 	defer s.mu.RUnlock()
 	if s.settings == nil {
 		return &SiteSettings{
-			ID:        1,
-			Title:     "Nocturne Shelf",
-			Tagline:   "A minimalist novel reader.",
-			LogoURL:   "",
-			LogoAlt:   "",
-			Headline:  "",
-			HeroText:  "",
-			PrimaryCta: "",
-			SecondaryCta: "",
-			AccentColor: "",
-			HighlightLabel: "",
-			FacebookUrl: "",
-			DiscordUrl: "",
+			ID:                 1,
+			Title:              "Nocturne Shelf",
+			Tagline:            "A minimalist novel reader.",
+			LogoURL:            "",
+			LogoAlt:            "",
+			Headline:           "",
+			HeroText:           "",
+			PrimaryCta:         "",
+			SecondaryCta:       "",
+			AccentColor:        "",
+			HighlightLabel:     "",
+			FacebookUrl:        "",
+			DiscordUrl:         "",
 			FooterUpdatesLabel: "Updates",
-			FooterUpdatesUrl: "/updates",
-			FooterSeriesLabel: "Series",
-			FooterSeriesUrl: "/library",
-			FooterAdminLabel: "Admin",
-			FooterAdminUrl: "/admin",
-			FooterLink4Label: "",
-			FooterLink4Url: "",
-			FooterLink5Label: "",
-			FooterLink5Url: "",
-			UpdatedAt: time.Now(),
+			FooterUpdatesUrl:   "/updates",
+			FooterSeriesLabel:  "Series",
+			FooterSeriesUrl:    "/library",
+			FooterAdminLabel:   "Admin",
+			FooterAdminUrl:     "/admin",
+			FooterLink4Label:   "",
+			FooterLink4Url:     "",
+			FooterLink5Label:   "",
+			FooterLink5Url:     "",
+			UpdatedAt:          time.Now(),
 		}, nil
 	}
 	return s.settings, nil
@@ -362,30 +362,30 @@ func (s *Store) UpdateSiteSettings(input SiteSettingsInput) (*SiteSettings, erro
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.settings = &SiteSettings{
-		ID:        1,
-		Title:     strings.TrimSpace(input.Title),
-		Tagline:   strings.TrimSpace(input.Tagline),
-		LogoURL:   strings.TrimSpace(input.LogoURL),
-		LogoAlt:   strings.TrimSpace(input.LogoAlt),
-		Headline:  strings.TrimSpace(input.Headline),
-		HeroText:  strings.TrimSpace(input.HeroText),
-		PrimaryCta: strings.TrimSpace(input.PrimaryCta),
-		SecondaryCta: strings.TrimSpace(input.SecondaryCta),
-		AccentColor: strings.TrimSpace(input.AccentColor),
-		HighlightLabel: strings.TrimSpace(input.HighlightLabel),
-		FacebookUrl: strings.TrimSpace(input.FacebookUrl),
-		DiscordUrl: strings.TrimSpace(input.DiscordUrl),
+		ID:                 1,
+		Title:              strings.TrimSpace(input.Title),
+		Tagline:            strings.TrimSpace(input.Tagline),
+		LogoURL:            strings.TrimSpace(input.LogoURL),
+		LogoAlt:            strings.TrimSpace(input.LogoAlt),
+		Headline:           strings.TrimSpace(input.Headline),
+		HeroText:           strings.TrimSpace(input.HeroText),
+		PrimaryCta:         strings.TrimSpace(input.PrimaryCta),
+		SecondaryCta:       strings.TrimSpace(input.SecondaryCta),
+		AccentColor:        strings.TrimSpace(input.AccentColor),
+		HighlightLabel:     strings.TrimSpace(input.HighlightLabel),
+		FacebookUrl:        strings.TrimSpace(input.FacebookUrl),
+		DiscordUrl:         strings.TrimSpace(input.DiscordUrl),
 		FooterUpdatesLabel: strings.TrimSpace(input.FooterUpdatesLabel),
-		FooterUpdatesUrl: strings.TrimSpace(input.FooterUpdatesUrl),
-		FooterSeriesLabel: strings.TrimSpace(input.FooterSeriesLabel),
-		FooterSeriesUrl: strings.TrimSpace(input.FooterSeriesUrl),
-		FooterAdminLabel: strings.TrimSpace(input.FooterAdminLabel),
-		FooterAdminUrl: strings.TrimSpace(input.FooterAdminUrl),
-		FooterLink4Label: strings.TrimSpace(input.FooterLink4Label),
-		FooterLink4Url: strings.TrimSpace(input.FooterLink4Url),
-		FooterLink5Label: strings.TrimSpace(input.FooterLink5Label),
-		FooterLink5Url: strings.TrimSpace(input.FooterLink5Url),
-		UpdatedAt: time.Now(),
+		FooterUpdatesUrl:   strings.TrimSpace(input.FooterUpdatesUrl),
+		FooterSeriesLabel:  strings.TrimSpace(input.FooterSeriesLabel),
+		FooterSeriesUrl:    strings.TrimSpace(input.FooterSeriesUrl),
+		FooterAdminLabel:   strings.TrimSpace(input.FooterAdminLabel),
+		FooterAdminUrl:     strings.TrimSpace(input.FooterAdminUrl),
+		FooterLink4Label:   strings.TrimSpace(input.FooterLink4Label),
+		FooterLink4Url:     strings.TrimSpace(input.FooterLink4Url),
+		FooterLink5Label:   strings.TrimSpace(input.FooterLink5Label),
+		FooterLink5Url:     strings.TrimSpace(input.FooterLink5Url),
+		UpdatedAt:          time.Now(),
 	}
 	return s.settings, nil
 }

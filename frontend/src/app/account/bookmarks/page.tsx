@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchBookmarks, fetchNovels, type AdminNovel, type BookmarkEntry } from "@/lib/api";
-import { clearSession, loadSession, type AuthSession } from "@/lib/auth";
+import { clearSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { SiteNav } from "@/components/site/site-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,31 +13,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { resolveAssetUrl } from "@/lib/utils";
 
 export default function BookmarksPage() {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [checked, setChecked] = useState(false);
-  const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>([]);
-  const [novels, setNovels] = useState<AdminNovel[]>([]);
-  const [loading, setLoading] = useState(true);
+  const session = useAuthSession();
+  const [bookmarks, setBookmarks] = useState<BookmarkEntry[] | null>(null);
+  const [novels, setNovels] = useState<AdminNovel[] | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const loaded = loadSession();
-    setSession(loaded);
-    setChecked(true);
-    if (!loaded) {
-      setLoading(false);
+    if (!session) {
       return;
     }
-    Promise.all([fetchBookmarks(loaded.token), fetchNovels()])
+    Promise.all([fetchBookmarks(session.token), fetchNovels()])
       .then(([bookmarkData, novelData]) => {
         setBookmarks(bookmarkData);
         setNovels(novelData);
       })
       .catch(() => setError("Unable to load bookmarks."))
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => {
+        setBookmarks((current) => current ?? []);
+        setNovels((current) => current ?? []);
+      });
+  }, [session]);
 
   const bookmarkedNovels = useMemo(() => {
+    if (!bookmarks || !novels) {
+      return [];
+    }
     const novelMap = new Map(novels.map((novel) => [novel.id, novel]));
     return bookmarks
       .map((bookmark) => ({
@@ -50,7 +51,7 @@ export default function BookmarksPage() {
       });
   }, [bookmarks, novels]);
 
-  if (!checked) {
+  if (session === undefined) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <SiteNav />
@@ -116,9 +117,11 @@ export default function BookmarksPage() {
           </div>
         </div>
         <div className="mt-6 grid gap-4">
-          {loading && <p className="text-sm text-muted-foreground">Loading bookmarks...</p>}
+          {session && (!bookmarks || !novels) && (
+            <p className="text-sm text-muted-foreground">Loading bookmarks...</p>
+          )}
           {error && <p className="text-sm text-red-400">{error}</p>}
-          {!loading && !error && bookmarkedNovels.length === 0 && (
+          {session && bookmarks && novels && !error && bookmarkedNovels.length === 0 && (
             <Card>
               <CardContent className="py-6 text-sm text-muted-foreground">
                 Bookmark a series to keep it here.

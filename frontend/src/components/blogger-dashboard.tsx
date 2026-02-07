@@ -52,7 +52,7 @@ import {
   uploadNovelCover,
   type AdminNovel,
 } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { resolveAssetUrl } from "@/lib/utils";
 
 const coverTones = [
@@ -67,7 +67,8 @@ export function BloggerDashboard() {
   const [novels, setNovels] = useState<AdminNovel[]>([]);
   const [chapterCounts, setChapterCounts] = useState<Record<number, number>>({});
   const [notice, setNotice] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const session = useAuthSession();
+  const isAdmin = session?.user.role === "admin";
   const [newPostOpen, setNewPostOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
@@ -88,41 +89,39 @@ export function BloggerDashboard() {
   });
   const statusOptions = ["Hiatus", "Completed", "Ongoing", "Axed", "Dropped"];
 
+  const getDashboardData = async () => {
+    return Promise.all([fetchNovelsAdmin(), fetchNovelStats()]);
+  };
+
+  const applyDashboardData = (
+    data: AdminNovel[],
+    stats: Awaited<ReturnType<typeof fetchNovelStats>>
+  ) => {
+    setNovels(data);
+
+    const counts: Record<number, number> = {};
+    stats.forEach((stat) => {
+      counts[stat.novelId] = stat.chapterCount;
+    });
+    setChapterCounts(counts);
+  };
+
   const loadDashboardData = async () => {
     setNotice("");
     try {
-      const [data, stats] = await Promise.all([fetchNovelsAdmin(), fetchNovelStats()]);
-      setNovels(data);
-
-      const counts: Record<number, number> = {};
-      const latestChapterIdsByNovel: Record<number, number> = {};
-      stats.forEach((stat) => {
-        counts[stat.novelId] = stat.chapterCount;
-        if (stat.latestChapterId) {
-          latestChapterIdsByNovel[stat.novelId] = stat.latestChapterId;
-        }
-      });
-      setChapterCounts(counts);
-
-      const recentNovels = [...data].sort((a, b) => {
-        const aTime = Date.parse(a.updatedAt);
-        const bTime = Date.parse(b.updatedAt);
-        return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
-      });
-      const recentChapterIds = recentNovels
-        .map((novel) => latestChapterIdsByNovel[novel.id])
-        .filter((id): id is number => Boolean(id))
-        .slice(0, 3);
-
+      const [data, stats] = await getDashboardData();
+      applyDashboardData(data, stats);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Failed to load dashboard.");
     }
   };
 
   useEffect(() => {
-    const session = loadSession();
-    setIsAdmin(session?.user.role === "admin");
-    void loadDashboardData();
+    getDashboardData()
+      .then(([data, stats]) => applyDashboardData(data, stats))
+      .catch((err) =>
+        setNotice(err instanceof Error ? err.message : "Failed to load dashboard.")
+      );
     fetchSiteSettings()
       .then((settings) => setSiteLogoUrl(settings.logoUrl || ""))
       .catch(() => null);
@@ -144,7 +143,6 @@ export function BloggerDashboard() {
     });
   }, [novels]);
 
-  const recentNovels = useMemo(() => sortedNovels.slice(0, 3), [sortedNovels]);
   const libraryPreview = useMemo(() => sortedNovels.slice(0, 3), [sortedNovels]);
 
   const totalChapters = useMemo(() => {

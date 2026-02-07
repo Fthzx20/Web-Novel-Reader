@@ -3,7 +3,8 @@ import { UploadThingError } from "uploadthing/server";
 
 const f = createUploadthing();
 
-const getAuth = async (_req: Request) => {
+const getAuth = async (req: Request) => {
+  void req;
   // TODO: Replace with real auth lookup.
   return { userId: "anonymous" };
 };

@@ -64,7 +64,7 @@ export default function ReaderPage() {
 
   const normalizedContent = useMemo(() => {
     return rawChapter?.content ? coerceContentToText(rawChapter.content) : "";
-  }, [rawChapter?.content]);
+  }, [rawChapter]);
 
   const chapterContent = useMemo(() => {
     if (!normalizedContent) {
@@ -104,31 +104,32 @@ export default function ReaderPage() {
     ? new Date(rawChapter.createdAt).toLocaleDateString()
     : "";
 
-  const [fontScale, setFontScale] = useState(1);
-  const [width, setWidth] = useState<ReaderPrefs["width"]>("comfy");
-  const [theme, setTheme] = useState<ReaderPrefs["theme"]>("night");
-  const [showSettings, setShowSettings] = useState(false);
-  const [copyStatus, setCopyStatus] = useState("");
-
   const prefsKey = `reader:${resolvedSlug}:prefs`;
-
-  useEffect(() => {
+  const storedPrefs = useMemo(() => {
     if (typeof window === "undefined") {
-      return;
+      return null;
     }
     const stored = window.localStorage.getItem(prefsKey);
     if (!stored) {
-      return;
+      return null;
     }
     try {
-      const parsed = JSON.parse(stored) as ReaderPrefs;
-      setFontScale(parsed.fontScale ?? 1);
-      setWidth(parsed.width ?? "comfy");
-      setTheme(parsed.theme ?? "night");
+      return JSON.parse(stored) as ReaderPrefs;
     } catch {
       window.localStorage.removeItem(prefsKey);
+      return null;
     }
   }, [prefsKey]);
+
+  const [fontScale, setFontScale] = useState(() => storedPrefs?.fontScale ?? 1);
+  const [width, setWidth] = useState<ReaderPrefs["width"]>(
+    () => storedPrefs?.width ?? "comfy"
+  );
+  const [theme, setTheme] = useState<ReaderPrefs["theme"]>(
+    () => storedPrefs?.theme ?? "night"
+  );
+  const [showSettings, setShowSettings] = useState(false);
+  const [copyStatus, setCopyStatus] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") {

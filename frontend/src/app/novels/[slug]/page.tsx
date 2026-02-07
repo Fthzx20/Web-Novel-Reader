@@ -26,7 +26,7 @@ import {
   type AdminNovel,
   type Chapter,
 } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { resolveAssetUrl } from "@/lib/utils";
 
 type StoredState = {
@@ -41,12 +41,13 @@ export default function NovelPage() {
   const params = useParams();
   const slugParam = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const resolvedSlug = slugParam ?? "";
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const session = useAuthSession();
+  const sessionToken = session?.token ?? null;
   const [novel, setNovel] = useState<AdminNovel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const coverUrl = novel?.coverUrl ? resolveAssetUrl(novel.coverUrl) : "";
   const latestChapter = chapters[chapters.length - 1];
-  const storageKey = novel ? `novel:${novel.slug}:state` : "";
+  const storageKey = resolvedSlug ? `novel:${resolvedSlug}:state` : "";
 
   const storedState = useMemo(() => {
     if (typeof window === "undefined" || !storageKey) {
@@ -64,31 +65,19 @@ export default function NovelPage() {
     }
   }, [storageKey]);
 
-  const [follow, setFollow] = useState(false);
-  const [bookmark, setBookmark] = useState(false);
-  const [rating, setRating] = useState<number | null>(null);
-  const [comments, setComments] = useState<StoredState["comments"]>([]);
+  const [follow, setFollow] = useState(() => storedState?.follow ?? false);
+  const [bookmark, setBookmark] = useState(() => storedState?.bookmark ?? false);
+  const [rating, setRating] = useState<number | null>(() => storedState?.rating ?? null);
+  const [comments, setComments] = useState<StoredState["comments"]>(
+    () => storedState?.comments ?? []
+  );
   const [commentText, setCommentText] = useState("");
-  const [readChapters, setReadChapters] = useState<number[]>([]);
+  const [readChapters, setReadChapters] = useState<number[]>(
+    () => storedState?.readChapters ?? []
+  );
   const [shareStatus, setShareStatus] = useState("");
   const [volumeFilter, setVolumeFilter] = useState<number | "All">("All");
   const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    const session = loadSession();
-    setSessionToken(session?.token ?? null);
-  }, []);
-
-  useEffect(() => {
-    if (!storedState || !storageKey) {
-      return;
-    }
-    setFollow(storedState.follow ?? false);
-    setBookmark(storedState.bookmark ?? false);
-    setRating(storedState.rating ?? null);
-    setComments(storedState.comments ?? []);
-    setReadChapters(storedState.readChapters ?? []);
-  }, [storedState, storageKey]);
 
   useEffect(() => {
     if (!resolvedSlug) {

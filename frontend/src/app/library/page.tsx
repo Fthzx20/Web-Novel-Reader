@@ -36,7 +36,7 @@ const toDateKey = (value: string) => {
 
 export default function LibraryPage() {
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [activeStatus, setActiveStatus] = useState("All");
   const [activeTag, setActiveTag] = useState("All");
   const [sortBy, setSortBy] = useState("latest");
@@ -52,11 +52,6 @@ export default function LibraryPage() {
         setNotice(err instanceof Error ? err.message : "Unable to load library.")
       );
   }, []);
-
-  useEffect(() => {
-    const initialQuery = searchParams.get("query") ?? "";
-    setQuery(initialQuery);
-  }, [searchParams]);
 
   const filteredNovels = useMemo(() => {
     const lowerQuery = query.toLowerCase();

@@ -18,11 +18,12 @@ import {
   updateAnnouncement,
   updateSiteSettings,
 } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { resolveAssetUrl } from "@/lib/utils";
 
 export default function AdminSettingsPage() {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const session = useAuthSession();
+  const isAdmin = session?.user.role === "admin";
   const [notice, setNotice] = useState("");
   const [settings, setSettings] = useState({
     title: "Malaz Translation",
@@ -57,8 +58,9 @@ export default function AdminSettingsPage() {
   });
 
   useEffect(() => {
-    const session = loadSession();
-    setIsAdmin(session?.user.role === "admin");
+    if (!isAdmin) {
+      return;
+    }
     fetchSiteSettings()
       .then((data) =>
         setSettings({
@@ -90,7 +92,25 @@ export default function AdminSettingsPage() {
     fetchAnnouncements()
       .then((data) => setAnnouncements(data.map((item) => ({ id: item.id, title: item.title, body: item.body }))))
       .catch(() => null);
-  }, []);
+  }, [isAdmin]);
+
+  if (session === undefined) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <SiteNav />
+        <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center px-6 py-16">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>Admin settings</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Loading session...
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
