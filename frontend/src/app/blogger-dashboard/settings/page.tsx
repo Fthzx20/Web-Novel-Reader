@@ -12,8 +12,8 @@ export default function BloggerSettingsPage() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_10%_10%,rgba(251,191,36,0.18),transparent_45%),radial-gradient(800px_circle_at_90%_0%,rgba(56,189,248,0.14),transparent_40%)]" />
-        <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10 lg:py-14">
-          <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6 lg:py-14">
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/60 bg-amber-200 text-zinc-900">
                 <Settings className="h-5 w-5" />
@@ -27,7 +27,7 @@ export default function BloggerSettingsPage() {
                 </h1>
               </div>
             </div>
-            <Button variant="outline" asChild className="gap-2">
+            <Button variant="outline" asChild className="w-full gap-2 sm:w-auto">
               <Link href="/blogger-dashboard">
                 <ArrowLeft className="h-4 w-4" />
                 Back to dashboard
@@ -86,11 +86,13 @@ export default function BloggerSettingsPage() {
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90">
+                <div className="flex flex-col gap-2 pt-2 sm:flex-row">
+                  <Button className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90 sm:w-auto">
                     Save settings
                   </Button>
-                  <Button variant="outline">Preview changes</Button>
+                  <Button variant="outline" className="sm:w-auto">
+                    Preview changes
+                  </Button>
                 </div>
               </div>
             </CardContent>

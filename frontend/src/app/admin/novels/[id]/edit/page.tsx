@@ -153,12 +153,12 @@ export default function EditNovelPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteNav />
-      <main className="mx-auto w-full max-w-5xl px-6 py-16">
+      <main className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="space-y-4">
           <Badge variant="subtle" className="w-fit">
             Edit project
           </Badge>
-          <h1 className="text-4xl font-semibold tracking-tight">Update details</h1>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Update details</h1>
           <p className="text-muted-foreground">
             Adjust metadata, reorder chapters, or archive the translation.
           </p>
@@ -168,7 +168,7 @@ export default function EditNovelPage() {
             <CardHeader>
               <CardTitle>Project status</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-wrap items-start justify-between gap-6 text-sm text-muted-foreground">
+            <CardContent className="flex flex-col items-start justify-between gap-6 text-sm text-muted-foreground sm:flex-row">
               <div className="space-y-3">
                 <p className="text-base font-semibold text-foreground">
                   {novel?.title ?? "Loading..."}
@@ -199,7 +199,7 @@ export default function EditNovelPage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle>Project metadata</CardTitle>
               <Button
                 variant="outline"
@@ -235,9 +235,9 @@ export default function EditNovelPage() {
                 />
                 <Input placeholder="Tags" value={tags} onChange={(event) => setTags(event.target.value)} />
                 <Textarea placeholder="Synopsis" value={synopsis} onChange={(event) => setSynopsis(event.target.value)} />
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   <Button
-                    className="gap-2"
+                    className="w-full gap-2 sm:w-auto"
                     onClick={async () => {
                       if (!title.trim()) {
                         setNotice("Title is required.");
@@ -267,7 +267,7 @@ export default function EditNovelPage() {
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="gap-2">
+                      <Button variant="outline" className="w-full gap-2 sm:w-auto">
                         Status: {status}
                         <ChevronDown className="h-4 w-4" />
                       </Button>
@@ -287,7 +287,7 @@ export default function EditNovelPage() {
                   </DropdownMenu>
                   <Button
                     variant="outline"
-                    className="text-red-500 hover:text-red-600"
+                    className="w-full text-red-500 hover:text-red-600 sm:w-auto"
                     onClick={async () => {
                       if (!novelId) {
                         return;
@@ -313,7 +313,7 @@ export default function EditNovelPage() {
             )}
           </Card>
           <Card className="border-border/60 bg-card/80">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle>Write chapter</CardTitle>
               <Button variant="outline" size="sm" disabled>
                 Rich text editor (soon)

@@ -87,8 +87,8 @@ export default function BloggerDashboardPage() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_15%_10%,rgba(251,191,36,0.18),transparent_45%),radial-gradient(800px_circle_at_85%_0%,rgba(56,189,248,0.16),transparent_40%)]" />
-        <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-10 lg:py-14">
-          <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-10 sm:px-6 lg:py-14">
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/60 bg-amber-200 text-zinc-900">
                 <Sparkles className="h-5 w-5" />
@@ -185,7 +185,7 @@ export default function BloggerDashboardPage() {
 
               <div className="grid gap-6 lg:grid-cols-[1.4fr,0.6fr]">
                 <Card className="border-border/60 bg-card/80">
-                  <CardHeader className="flex flex-row items-center justify-between">
+                  <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <CardTitle>Recent posts</CardTitle>
                       <p className="text-sm text-muted-foreground">
@@ -201,7 +201,7 @@ export default function BloggerDashboardPage() {
                     {posts.map((post) => (
                       <div
                         key={post.title}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/60 px-4 py-3"
+                        className="flex flex-col gap-3 rounded-xl border border-border/50 bg-background/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div>
                           <p className="font-medium">{post.title}</p>
@@ -259,7 +259,7 @@ export default function BloggerDashboardPage() {
               </div>
 
               <Card className="border-border/60 bg-card/80">
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle>Novel library</CardTitle>
                     <p className="text-sm text-muted-foreground">
@@ -277,7 +277,7 @@ export default function BloggerDashboardPage() {
                   {novelLibrary.map((novel) => (
                     <div
                       key={novel.title}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/60 px-4 py-3"
+                      className="flex flex-col gap-3 rounded-xl border border-border/50 bg-background/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex items-center gap-4">
                         <div
@@ -299,10 +299,10 @@ export default function BloggerDashboardPage() {
                         <span className="text-muted-foreground">
                           {novel.chapters} chapters
                         </span>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto">
                           Edit
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto">
                           Delete
                         </Button>
                       </div>
