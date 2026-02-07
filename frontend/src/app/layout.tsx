@@ -15,7 +15,7 @@ const monoFont = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nocturne Shelf",
+  title: "Malaz Translation",
   description: "A minimalist novel reader and admin studio.",
 };
 
