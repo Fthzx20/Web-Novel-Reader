@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Search, Trophy, BookOpenText } from "lucide-react";
 
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { fetchNovels, fetchReadingHistory, type AdminNovel } from "@/lib/api";
+import { fetchNovels, fetchReadingHistory, fetchSiteSettings, type AdminNovel, type SiteSettings } from "@/lib/api";
 import { loadSession, type AuthSession } from "@/lib/auth";
 import { resolveAssetUrl } from "@/lib/utils";
 
@@ -21,15 +22,18 @@ const parseDate = (value: string) => {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [session, setSession] = useState<AuthSession | null>(null);
   const isAdmin = session?.user.role === "admin";
   const [novels, setNovels] = useState<AdminNovel[]>([]);
   const [notice, setNotice] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [recentRead, setRecentRead] = useState<{
     novelSlug: string;
     novelTitle: string;
     chapterTitle: string;
   } | null>(null);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => {
     setSession(loadSession());
@@ -41,6 +45,12 @@ export default function Home() {
       .catch((err) =>
         setNotice(err instanceof Error ? err.message : "Failed to load updates.")
       );
+  }, []);
+
+  useEffect(() => {
+    fetchSiteSettings()
+      .then((settings) => setSiteSettings(settings))
+      .catch(() => null);
   }, []);
 
   useEffect(() => {
@@ -62,11 +72,11 @@ export default function Home() {
       .catch(() => null);
   }, [session]);
 
-  const rankings = useMemo(() => {
-    return [...novels]
-      .sort((a, b) => parseDate(b.updatedAt) - parseDate(a.updatedAt))
-      .slice(0, 5);
+  const novelsByUpdated = useMemo(() => {
+    return [...novels].sort((a, b) => parseDate(b.updatedAt) - parseDate(a.updatedAt));
   }, [novels]);
+
+  const rankings = useMemo(() => novelsByUpdated.slice(0, 5), [novelsByUpdated]);
 
   const newSeries = useMemo(() => {
     return [...novels]
@@ -74,10 +84,18 @@ export default function Home() {
       .slice(0, 4);
   }, [novels]);
 
-  const latestUpdates = useMemo(() => {
-    return [...novels]
-      .sort((a, b) => parseDate(b.updatedAt) - parseDate(a.updatedAt))
-      .slice(0, 5);
+  const latestUpdates = useMemo(() => novelsByUpdated.slice(0, 5), [novelsByUpdated]);
+
+  const authorCount = useMemo(() => {
+    return new Set(novels.map((novel) => novel.author).filter(Boolean)).size;
+  }, [novels]);
+
+  const tagCount = useMemo(() => {
+    const tags = new Set<string>();
+    novels.forEach((novel) => {
+      novel.tags.forEach((tag) => tags.add(tag));
+    });
+    return tags.size;
   }, [novels]);
 
   return (
@@ -86,45 +104,70 @@ export default function Home() {
       <main className="mx-auto w-full max-w-6xl px-6 py-16">
         <section className="grid gap-12 lg:grid-cols-[1.2fr,0.8fr]">
           <div className="space-y-6">
-            <Badge variant="subtle" className="w-fit">
-              Malaz Translation Project
+            <Badge
+              variant="subtle"
+              className="w-fit"
+              style={siteSettings?.accentColor ? { backgroundColor: siteSettings.accentColor, color: "#111827" } : undefined}
+            >
+              {siteSettings?.highlightLabel || "Malaz Translation Project"}
             </Badge>
             <h1 className="text-4xl font-semibold tracking-tight md:text-6xl">
-              Fast updates, clean reading, and zero distractions.
+              {siteSettings?.headline || "Fast updates, clean reading, and zero distractions."}
             </h1>
             <p className="max-w-xl text-lg text-muted-foreground">
-              Track new chapters, follow translation teams, and read on any
-              screen with a lightweight layout that keeps you focused.
+              {siteSettings?.heroDescription ||
+                "Track new chapters, follow translation teams, and read on any screen with a lightweight layout that keeps you focused."}
             </p>
             <div className="flex flex-wrap gap-3">
-              <Button className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90" asChild>
-                <Link href="/library">Browse updates</Link>
+              <Button
+                className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
+                style={siteSettings?.accentColor ? { backgroundColor: siteSettings.accentColor } : undefined}
+                asChild
+              >
+                <Link href="/library">{siteSettings?.primaryButton || "Browse updates"}</Link>
               </Button>
               {isAdmin && (
                 <Button variant="outline" asChild>
                   <Link href="/admin">Upload translation</Link>
                 </Button>
               )}
+              {!isAdmin && siteSettings?.secondaryButton && (
+                <Button variant="outline" asChild>
+                  <Link href="/updates">{siteSettings.secondaryButton}</Link>
+                </Button>
+              )}
             </div>
-            <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card/60 px-4 py-3">
+            <form
+              className="flex items-center gap-3 rounded-xl border border-border/50 bg-card/60 px-4 py-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const trimmed = searchQuery.trim();
+                if (!trimmed) {
+                  return;
+                }
+                router.push(`/library?query=${encodeURIComponent(trimmed)}`);
+              }}
+            >
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search title, team, or origin..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="border-none bg-transparent px-0 focus-visible:ring-0"
               />
-            </div>
+            </form>
             <div className="grid gap-4 text-sm text-muted-foreground sm:grid-cols-3">
               <div>
                 <p className="text-2xl font-semibold text-foreground">{novels.length}</p>
                 <p>Series updated</p>
               </div>
               <div>
-                <p className="text-2xl font-semibold text-foreground">42</p>
-                <p>Active teams</p>
+                <p className="text-2xl font-semibold text-foreground">{authorCount}</p>
+                <p>Active authors</p>
               </div>
               <div>
-                <p className="text-2xl font-semibold text-foreground">210k</p>
-                <p>Followers</p>
+                <p className="text-2xl font-semibold text-foreground">{tagCount}</p>
+                <p>Genres tracked</p>
               </div>
             </div>
           </div>
@@ -183,8 +226,9 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-4">
               {rankings.map((novel, index) => (
-                <div
+                <Link
                   key={novel.id}
+                  href={`/novels/${novel.slug}`}
                   className="flex items-center justify-between rounded-lg border border-border/40 px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
@@ -215,7 +259,7 @@ export default function Home() {
                     </div>
                   </div>
                   <Badge variant="outline">{novel.status}</Badge>
-                </div>
+                </Link>
               ))}
             </CardContent>
           </Card>

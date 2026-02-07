@@ -19,6 +19,7 @@ type Chapter struct {
 	ID        int       `json:"id"`
 	NovelID   int       `json:"novelId"`
 	Number    int       `json:"number"`
+	Volume    int       `json:"volume"`
 	Title     string    `json:"title"`
 	Content   string    `json:"content"`
 	WordCount int       `json:"wordCount"`
@@ -56,6 +57,7 @@ type AuthUser struct {
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
 	Role         string    `json:"role"`
+	Status       string    `json:"status"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
 
@@ -88,6 +90,25 @@ type SiteSettings struct {
 	Title     string    `json:"title"`
 	Tagline   string    `json:"tagline"`
 	LogoURL   string    `json:"logoUrl"`
+	LogoAlt   string    `json:"logoAlt"`
+	Headline  string    `json:"headline"`
+	HeroText  string    `json:"heroDescription"`
+	PrimaryCta string   `json:"primaryButton"`
+	SecondaryCta string `json:"secondaryButton"`
+	AccentColor string  `json:"accentColor"`
+	HighlightLabel string `json:"highlightLabel"`
+	FacebookUrl string `json:"facebookUrl"`
+	DiscordUrl string `json:"discordUrl"`
+	FooterUpdatesLabel string `json:"footerUpdatesLabel"`
+	FooterUpdatesUrl string `json:"footerUpdatesUrl"`
+	FooterSeriesLabel string `json:"footerSeriesLabel"`
+	FooterSeriesUrl string `json:"footerSeriesUrl"`
+	FooterAdminLabel string `json:"footerAdminLabel"`
+	FooterAdminUrl string `json:"footerAdminUrl"`
+	FooterLink4Label string `json:"footerLink4Label"`
+	FooterLink4Url string `json:"footerLink4Url"`
+	FooterLink5Label string `json:"footerLink5Label"`
+	FooterLink5Url string `json:"footerLink5Url"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
@@ -117,6 +138,12 @@ type ModerationReport struct {
 	NovelTitle string    `json:"novelTitle"`
 	Note       string    `json:"note"`
 	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type NovelChapterStat struct {
+	NovelID         int `json:"novelId"`
+	ChapterCount    int `json:"chapterCount"`
+	LatestChapterID int `json:"latestChapterId"`
 }
 
 type Illustration struct {

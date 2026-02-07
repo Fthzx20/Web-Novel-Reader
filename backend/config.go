@@ -17,12 +17,13 @@ type Config struct {
 	JWTSecret          string
 	JWTTTL             time.Duration
 	AdminEmails        []string
+	ModerationPassword string
 }
 
 func LoadConfig() Config {
 	loadDotEnv()
 	return Config{
-		Port:              getEnv("PORT", "8080"),
+		Port:              getEnv("PORT", "8081"),
 		APIKey:            os.Getenv("API_KEY"),
 		DatabaseURL:       os.Getenv("DATABASE_URL"),
 		DBMaxConns:        getEnvInt("DB_MAX_CONNS", 10),
@@ -31,6 +32,7 @@ func LoadConfig() Config {
 		JWTSecret:         getEnv("JWT_SECRET", "dev-secret"),
 		JWTTTL:            getEnvDuration("JWT_TTL", "24h"),
 		AdminEmails:       getEnvList("ADMIN_EMAILS"),
+		ModerationPassword: os.Getenv("MODERATION_PASSWORD"),
 	}
 }
 

@@ -16,7 +16,9 @@ import {
   bookmarkNovel,
   fetchChaptersByNovel,
   fetchComments,
+  fetchBookmarks,
   fetchNovels,
+  fetchReadingHistory,
   followNovel,
   rateNovel,
   unbookmarkNovel,
@@ -39,14 +41,15 @@ export default function NovelPage() {
   const params = useParams();
   const slugParam = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const resolvedSlug = slugParam ?? "";
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [novel, setNovel] = useState<AdminNovel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const coverUrl = novel?.coverUrl ? resolveAssetUrl(novel.coverUrl) : "";
   const latestChapter = chapters[chapters.length - 1];
   const storageKey = novel ? `novel:${novel.slug}:state` : "";
 
-  const getStoredState = () => {
-    if (typeof window === "undefined") {
+  const storedState = useMemo(() => {
+    if (typeof window === "undefined" || !storageKey) {
       return null;
     }
     const stored = window.localStorage.getItem(storageKey);
@@ -59,21 +62,33 @@ export default function NovelPage() {
       window.localStorage.removeItem(storageKey);
       return null;
     }
-  };
+  }, [storageKey]);
 
-  const storedState = getStoredState();
-
-  const [follow, setFollow] = useState(storedState?.follow ?? false);
-  const [bookmark, setBookmark] = useState(storedState?.bookmark ?? false);
-  const [rating, setRating] = useState<number | null>(storedState?.rating ?? null);
-  const [comments, setComments] = useState(storedState?.comments ?? []);
+  const [follow, setFollow] = useState(false);
+  const [bookmark, setBookmark] = useState(false);
+  const [rating, setRating] = useState<number | null>(null);
+  const [comments, setComments] = useState<StoredState["comments"]>([]);
   const [commentText, setCommentText] = useState("");
-  const [readChapters, setReadChapters] = useState<number[]>(
-    storedState?.readChapters ?? []
-  );
+  const [readChapters, setReadChapters] = useState<number[]>([]);
   const [shareStatus, setShareStatus] = useState("");
   const [volumeFilter, setVolumeFilter] = useState<number | "All">("All");
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    const session = loadSession();
+    setSessionToken(session?.token ?? null);
+  }, []);
+
+  useEffect(() => {
+    if (!storedState || !storageKey) {
+      return;
+    }
+    setFollow(storedState.follow ?? false);
+    setBookmark(storedState.bookmark ?? false);
+    setRating(storedState.rating ?? null);
+    setComments(storedState.comments ?? []);
+    setReadChapters(storedState.readChapters ?? []);
+  }, [storedState, storageKey]);
 
   useEffect(() => {
     if (!resolvedSlug) {
@@ -94,13 +109,36 @@ export default function NovelPage() {
       });
   }, [resolvedSlug]);
 
+  useEffect(() => {
+    if (!sessionToken || !novel) {
+      return;
+    }
+    fetchBookmarks(sessionToken)
+      .then((data) => {
+        const isBookmarked = data.some((entry) => entry.novelId === novel.id);
+        setBookmark(isBookmarked);
+      })
+      .catch(() => null);
+  }, [sessionToken, novel]);
+
+  useEffect(() => {
+    if (!sessionToken || !novel) {
+      return;
+    }
+    fetchReadingHistory(sessionToken)
+      .then((data) => {
+        const chapterIds = data
+          .filter((entry) => entry.novelSlug === novel.slug)
+          .map((entry) => entry.chapterId);
+        setReadChapters(Array.from(new Set(chapterIds)));
+      })
+      .catch(() => null);
+  }, [sessionToken, novel]);
+
   const commentsChapterId = latestChapter?.id ?? chapters[0]?.id;
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (!storageKey) {
+    if (typeof window === "undefined" || !storageKey) {
       return;
     }
     const payload: StoredState = {
@@ -110,7 +148,10 @@ export default function NovelPage() {
       comments,
       readChapters,
     };
-    window.localStorage.setItem(storageKey, JSON.stringify(payload));
+    const handle = window.setTimeout(() => {
+      window.localStorage.setItem(storageKey, JSON.stringify(payload));
+    }, 400);
+    return () => window.clearTimeout(handle);
   }, [follow, bookmark, rating, comments, readChapters, storageKey]);
 
   useEffect(() => {
@@ -153,17 +194,12 @@ export default function NovelPage() {
   const chaptersWithVolume = useMemo(() => {
     return chapters.map((chapter) => ({
       ...chapter,
-      volume: Math.max(1, Math.ceil(chapter.number / 10)),
+      volume:
+        chapter.volume && chapter.volume > 0
+          ? chapter.volume
+          : Math.max(1, Math.ceil(chapter.number / 10)),
     }));
   }, [chapters]);
-
-  const getWordCount = (content: string) => {
-    const trimmed = content.trim();
-    if (!trimmed) {
-      return 0;
-    }
-    return trimmed.split(/\s+/).length;
-  };
 
   const formatReadTime = (words: number) => {
     if (!words) {
@@ -184,6 +220,22 @@ export default function NovelPage() {
     }
     return chaptersWithVolume.filter((chapter) => chapter.volume === volumeFilter);
   }, [chaptersWithVolume, volumeFilter]);
+
+  const chapterMeta = useMemo(() => {
+    return visibleChapters.map((chapter) => {
+      const trimmed = chapter.content.trim();
+      const words = chapter.wordCount || (trimmed ? trimmed.split(/\s+/).length : 0);
+      const releasedAt = chapter.createdAt
+        ? new Date(chapter.createdAt).toLocaleDateString()
+        : "";
+      return {
+        chapter,
+        words,
+        releasedAt,
+        timeLabel: formatReadTime(words),
+      };
+    });
+  }, [visibleChapters]);
 
   if (!novel) {
     return (
@@ -294,6 +346,7 @@ export default function NovelPage() {
                       await unbookmarkNovel(session.token, novel.id);
                     }
                   } catch (err) {
+                    setBookmark(!next);
                     setNotice(err instanceof Error ? err.message : "Failed to update bookmark.");
                   }
                 }}
@@ -340,8 +393,7 @@ export default function NovelPage() {
                     </Button>
                   ))}
                 </div>
-                {visibleChapters.map((chapter) => (
-                  
+                {chapterMeta.map(({ chapter, words, releasedAt, timeLabel }) => (
                   <Link
                     key={chapter.id}
                     href={`/read/${novel.slug}/${chapter.id}`}
@@ -349,26 +401,15 @@ export default function NovelPage() {
                     onClick={() => markRead(chapter.id)}
                   >
                     <div>
-                      {(() => {
-                        const words = getWordCount(chapter.content);
-                        const releasedAt = chapter.createdAt
-                          ? new Date(chapter.createdAt).toLocaleDateString()
-                          : "";
-                        const timeLabel = formatReadTime(words);
-                        return (
-                          <>
-                            <p className="font-medium">
-                              Vol. {chapter.volume} · Chapter {chapter.number}: {chapter.title}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {words ? `${words} words` : ""}
-                              {words && timeLabel ? " · " : ""}
-                              {timeLabel}
-                              {releasedAt ? ` · ${releasedAt}` : ""}
-                            </p>
-                          </>
-                        );
-                      })()}
+                      <p className="font-medium">
+                        Vol. {chapter.volume} · Chapter {chapter.number}: {chapter.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {words ? `${words} words` : ""}
+                        {words && timeLabel ? " · " : ""}
+                        {timeLabel}
+                        {releasedAt ? ` · ${releasedAt}` : ""}
+                      </p>
                     </div>
                     <Badge variant={readChapters.includes(chapter.id) ? "subtle" : "outline"}>
                       {readChapters.includes(chapter.id) ? "Read" : "New"}

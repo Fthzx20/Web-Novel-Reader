@@ -37,6 +37,7 @@ export type Chapter = {
   id: number;
   novelId: number;
   number: number;
+  volume: number;
   title: string;
   content: string;
   wordCount: number;
@@ -49,6 +50,7 @@ export type AuthUser = {
   name: string;
   email: string;
   role: string;
+  status: string;
   createdAt: string;
 };
 
@@ -65,6 +67,13 @@ export type ReadingHistoryEntry = {
   chapterId: number;
   chapterTitle: string;
   readAt: string;
+};
+
+export type BookmarkEntry = {
+  id: number;
+  userId: number;
+  novelId: number;
+  createdAt: string;
 };
 
 export type ReleaseQueueItem = {
@@ -88,7 +97,29 @@ export type ModerationReport = {
   createdAt: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+export type UserSummary = {
+  id: number;
+  name: string;
+  role: string;
+  createdAt: string;
+};
+
+export type AdminUser = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  createdAt: string;
+};
+
+export type NovelChapterStat = {
+  novelId: number;
+  chapterCount: number;
+  latestChapterId: number;
+};
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
 const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? "";
 
 async function getErrorMessage(response: Response, fallback: string) {
@@ -107,6 +138,15 @@ function adminHeaders() {
   return { ...key, ...bearer };
 }
 
+function moderationHeaders() {
+  if (typeof window === "undefined") {
+    return adminHeaders();
+  }
+  const password = window.sessionStorage.getItem("moderationPassword") ?? "";
+  const moderation = password ? { "X-Moderation-Password": password } : {};
+  return { ...adminHeaders(), ...moderation };
+}
+
 export async function fetchNovels(): Promise<AdminNovel[]> {
   const response = await fetch(`${API_BASE}/novels`, { cache: "no-store" });
   if (!response.ok) {
@@ -121,6 +161,14 @@ export async function fetchNovelsAdmin(): Promise<AdminNovel[]> {
     throw new Error(await getErrorMessage(response, "Failed to load novels"));
   }
   return (await response.json()) as AdminNovel[];
+}
+
+export async function fetchNovelStats(): Promise<NovelChapterStat[]> {
+  const response = await fetch(`${API_BASE}/novels/stats`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load novel stats"));
+  }
+  return (await response.json()) as NovelChapterStat[];
 }
 
 export async function fetchNovel(id: number): Promise<AdminNovel> {
@@ -214,6 +262,81 @@ export async function fetchModerationReports(): Promise<ModerationReport[]> {
   return (await response.json()) as ModerationReport[];
 }
 
+export async function fetchAdminUsers(): Promise<AdminUser[]> {
+  const response = await fetch(`${API_BASE}/admin/users`, {
+    headers: {
+      ...moderationHeaders(),
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load users"));
+  }
+  return (await response.json()) as AdminUser[];
+}
+
+export async function updateUserRole(id: number, role: string): Promise<AdminUser> {
+  const response = await fetch(`${API_BASE}/admin/users/${id}/role`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...moderationHeaders(),
+    },
+    body: JSON.stringify({ role }),
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to update role"));
+  }
+  return (await response.json()) as AdminUser;
+}
+
+export async function updateUserStatus(id: number, status: string): Promise<AdminUser> {
+  const response = await fetch(`${API_BASE}/admin/users/${id}/status`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...moderationHeaders(),
+    },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to update status"));
+  }
+  return (await response.json()) as AdminUser;
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/admin/users/${id}`, {
+    method: "DELETE",
+    headers: {
+      ...moderationHeaders(),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to delete user"));
+  }
+}
+
+export async function clearUserHistory(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/admin/users/${id}/history`, {
+    method: "DELETE",
+    headers: {
+      ...moderationHeaders(),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to clear history"));
+  }
+}
+
+export async function fetchUsers(): Promise<UserSummary[]> {
+  const response = await fetch(`${API_BASE}/users`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, "Failed to load users"));
+  }
+  return (await response.json()) as UserSummary[];
+}
+
 export async function deleteModerationReport(id: number): Promise<void> {
   const response = await fetch(`${API_BASE}/reports/${id}`, {
     method: "DELETE",
@@ -268,6 +391,17 @@ export async function fetchReadingHistory(token: string): Promise<ReadingHistory
   return (await response.json()) as ReadingHistoryEntry[];
 }
 
+export async function fetchBookmarks(token: string): Promise<BookmarkEntry[]> {
+  const response = await fetch(`${API_BASE}/me/bookmarks`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to load bookmarks");
+  }
+  return (await response.json()) as BookmarkEntry[];
+}
+
 export async function recordReadingHistory(
   token: string,
   input: {
@@ -287,6 +421,16 @@ export async function recordReadingHistory(
   });
   if (!response.ok) {
     throw new Error("Failed to record history");
+  }
+}
+
+export async function clearReadingHistory(token: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/me/history`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to clear history");
   }
 }
 
@@ -427,6 +571,7 @@ export async function createChapterAdmin(
   novelId: number,
   input: {
     number: number;
+    volume: number;
     title: string;
     content: string;
   }
@@ -471,6 +616,7 @@ export async function updateChapterAdmin(
   chapterId: number,
   input: {
     number: number;
+    volume: number;
     title: string;
     content: string;
   }
@@ -506,6 +652,25 @@ export type SiteSettings = {
   title: string;
   tagline: string;
   logoUrl: string;
+  logoAlt: string;
+  headline: string;
+  heroDescription: string;
+  primaryButton: string;
+  secondaryButton: string;
+  accentColor: string;
+  highlightLabel: string;
+  facebookUrl: string;
+  discordUrl: string;
+  footerUpdatesLabel: string;
+  footerUpdatesUrl: string;
+  footerSeriesLabel: string;
+  footerSeriesUrl: string;
+  footerAdminLabel: string;
+  footerAdminUrl: string;
+  footerLink4Label: string;
+  footerLink4Url: string;
+  footerLink5Label: string;
+  footerLink5Url: string;
   updatedAt: string;
 };
 
@@ -528,6 +693,25 @@ export async function updateSiteSettings(input: {
   title: string;
   tagline: string;
   logoUrl: string;
+  logoAlt: string;
+  headline: string;
+  heroDescription: string;
+  primaryButton: string;
+  secondaryButton: string;
+  accentColor: string;
+  highlightLabel: string;
+  facebookUrl: string;
+  discordUrl: string;
+  footerUpdatesLabel: string;
+  footerUpdatesUrl: string;
+  footerSeriesLabel: string;
+  footerSeriesUrl: string;
+  footerAdminLabel: string;
+  footerAdminUrl: string;
+  footerLink4Label: string;
+  footerLink4Url: string;
+  footerLink5Label: string;
+  footerLink5Url: string;
 }): Promise<SiteSettings> {
   const response = await fetch(`${API_BASE}/settings`, {
     method: "PUT",

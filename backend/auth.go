@@ -54,6 +54,7 @@ func toAuthUserInfo(user *AuthUser) AuthUserInfo {
 		Name:      user.Name,
 		Email:     user.Email,
 		Role:      user.Role,
+		Status:    user.Status,
 		CreatedAt: user.CreatedAt,
 	}
 }

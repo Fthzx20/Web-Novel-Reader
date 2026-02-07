@@ -195,7 +195,7 @@ func (r *AppRepository) DeleteNovel(id int) error {
 
 func (r *AppRepository) ListChaptersByNovel(novelID int) ([]*Chapter, error) {
 	rows, err := r.db.Query(
-		`SELECT id, novel_id, number, title, content, word_count, created_at, updated_at
+		`SELECT id, novel_id, number, volume, title, content, word_count, created_at, updated_at
 		 FROM chapters
 		 WHERE novel_id = $1
 		 ORDER BY number ASC`,
@@ -213,6 +213,7 @@ func (r *AppRepository) ListChaptersByNovel(novelID int) ([]*Chapter, error) {
 			&chapter.ID,
 			&chapter.NovelID,
 			&chapter.Number,
+			&chapter.Volume,
 			&chapter.Title,
 			&chapter.Content,
 			&chapter.WordCount,
@@ -229,13 +230,14 @@ func (r *AppRepository) ListChaptersByNovel(novelID int) ([]*Chapter, error) {
 func (r *AppRepository) GetChapter(id int) (*Chapter, error) {
 	var chapter Chapter
 	err := r.db.QueryRow(
-		`SELECT id, novel_id, number, title, content, word_count, created_at, updated_at
+		`SELECT id, novel_id, number, volume, title, content, word_count, created_at, updated_at
 		 FROM chapters WHERE id = $1`,
 		id,
 	).Scan(
 		&chapter.ID,
 		&chapter.NovelID,
 		&chapter.Number,
+		&chapter.Volume,
 		&chapter.Title,
 		&chapter.Content,
 		&chapter.WordCount,
@@ -256,9 +258,14 @@ func (r *AppRepository) CreateChapter(novelID int, input ChapterInput) (*Chapter
 		return nil, err
 	}
 	now := time.Now()
+	volume := input.Volume
+	if volume < 1 {
+		volume = 1
+	}
 	chapter := &Chapter{
 		NovelID:   novelID,
 		Number:    input.Number,
+		Volume:    volume,
 		Title:     strings.TrimSpace(input.Title),
 		Content:   strings.TrimSpace(input.Content),
 		WordCount: len(strings.Fields(input.Content)),
@@ -267,11 +274,12 @@ func (r *AppRepository) CreateChapter(novelID int, input ChapterInput) (*Chapter
 	}
 
 	err := r.db.QueryRow(
-		`INSERT INTO chapters (novel_id, number, title, content, word_count, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`INSERT INTO chapters (novel_id, number, volume, title, content, word_count, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING id`,
 		chapter.NovelID,
 		chapter.Number,
+		chapter.Volume,
 		chapter.Title,
 		chapter.Content,
 		chapter.WordCount,
@@ -290,14 +298,18 @@ func (r *AppRepository) UpdateChapter(id int, input ChapterInput) (*Chapter, err
 		return nil, err
 	}
 	chapter.Number = input.Number
+	if input.Volume >= 1 {
+		chapter.Volume = input.Volume
+	}
 	chapter.Title = strings.TrimSpace(input.Title)
 	chapter.Content = strings.TrimSpace(input.Content)
 	chapter.WordCount = len(strings.Fields(input.Content))
 	chapter.UpdatedAt = time.Now()
 
 	_, err = r.db.Exec(
-		`UPDATE chapters SET number = $1, title = $2, content = $3, word_count = $4, updated_at = $5 WHERE id = $6`,
+		`UPDATE chapters SET number = $1, volume = $2, title = $3, content = $4, word_count = $5, updated_at = $6 WHERE id = $7`,
 		chapter.Number,
+		chapter.Volume,
 		chapter.Title,
 		chapter.Content,
 		chapter.WordCount,
@@ -437,7 +449,23 @@ func (r *AppRepository) CreateRating(novelID int, input RatingInput) (*Rating, e
 }
 
 func (r *AppRepository) ListUsers() []*User {
-	return r.store.ListUsers()
+	rows, err := r.db.Query(
+		`SELECT id, name, role, created_at FROM auth_users ORDER BY id`,
+	)
+	if err != nil {
+		return []*User{}
+	}
+	defer rows.Close()
+
+	items := make([]*User, 0)
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Name, &user.Role, &user.CreatedAt); err != nil {
+			continue
+		}
+		items = append(items, &user)
+	}
+	return items
 }
 
 func (r *AppRepository) CreateUser(name, role string) (*User, error) {
@@ -451,10 +479,10 @@ func (r *AppRepository) CreateAuthUser(input AuthRegisterInput) (*AuthUser, erro
 	}
 	var existingID int
 	checkErr := r.db.QueryRow("SELECT id FROM auth_users WHERE email = $1", email).Scan(&existingID)
-	if checkErr == nil {
+	switch {
+	case checkErr == nil:
 		return nil, errConflict
-	}
-	if checkErr != nil && !errors.Is(checkErr, sql.ErrNoRows) {
+	case !errors.Is(checkErr, sql.ErrNoRows):
 		return nil, checkErr
 	}
 
@@ -468,20 +496,22 @@ func (r *AppRepository) CreateAuthUser(input AuthRegisterInput) (*AuthUser, erro
 	if strings.TrimSpace(input.Role) != "" {
 		role = strings.TrimSpace(input.Role)
 	}
+	status := "active"
 	createdAt := time.Now()
 
 	var user AuthUser
 	user.Role = role
+	user.Status = status
 	user.CreatedAt = createdAt
 	user.Email = email
 	user.Name = name
 	user.PasswordHash = hash
 
 	err = r.db.QueryRow(
-		`INSERT INTO auth_users (name, email, password_hash, role, created_at)
-		 VALUES ($1, $2, $3, $4, $5)
+		`INSERT INTO auth_users (name, email, password_hash, role, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6)
 		 RETURNING id`,
-		name, email, hash, role, createdAt,
+		name, email, hash, role, status, createdAt,
 	).Scan(&user.ID)
 	if err != nil {
 		return nil, err
@@ -496,10 +526,10 @@ func (r *AppRepository) GetAuthUserByEmail(email string) (*AuthUser, error) {
 	}
 	var user AuthUser
 	err := r.db.QueryRow(
-		`SELECT id, name, email, password_hash, role, created_at
+		`SELECT id, name, email, password_hash, role, status, created_at
 		 FROM auth_users WHERE email = $1`,
 		key,
-	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.CreatedAt)
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.Status, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errNotFound
@@ -507,6 +537,101 @@ func (r *AppRepository) GetAuthUserByEmail(email string) (*AuthUser, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *AppRepository) GetAuthUserByID(id int) (*AuthUser, error) {
+	if id <= 0 {
+		return nil, errNotFound
+	}
+	var user AuthUser
+	err := r.db.QueryRow(
+		`SELECT id, name, email, password_hash, role, status, created_at
+		 FROM auth_users WHERE id = $1`,
+		id,
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.Status, &user.CreatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *AppRepository) ListAuthUsers() []*AuthUser {
+	rows, err := r.db.Query(
+		`SELECT id, name, email, role, status, created_at FROM auth_users ORDER BY id`,
+	)
+	if err != nil {
+		return []*AuthUser{}
+	}
+	defer rows.Close()
+
+	items := make([]*AuthUser, 0)
+	for rows.Next() {
+		var user AuthUser
+		if err := rows.Scan(&user.ID, &user.Name, &user.Email, &user.Role, &user.Status, &user.CreatedAt); err != nil {
+			continue
+		}
+		items = append(items, &user)
+	}
+	return items
+}
+
+func (r *AppRepository) UpdateAuthUserRole(id int, role string) (*AuthUser, error) {
+	if id <= 0 {
+		return nil, errNotFound
+	}
+	var user AuthUser
+	err := r.db.QueryRow(
+		`UPDATE auth_users SET role = $1 WHERE id = $2
+		 RETURNING id, name, email, password_hash, role, status, created_at`,
+		strings.TrimSpace(role), id,
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.Status, &user.CreatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *AppRepository) UpdateAuthUserStatus(id int, status string) (*AuthUser, error) {
+	if id <= 0 {
+		return nil, errNotFound
+	}
+	var user AuthUser
+	err := r.db.QueryRow(
+		`UPDATE auth_users SET status = $1 WHERE id = $2
+		 RETURNING id, name, email, password_hash, role, status, created_at`,
+		strings.TrimSpace(status), id,
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role, &user.Status, &user.CreatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *AppRepository) DeleteAuthUser(id int) error {
+	if id <= 0 {
+		return errNotFound
+	}
+	result, err := r.db.Exec(`DELETE FROM auth_users WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return errNotFound
+	}
+	return nil
 }
 
 func (r *AppRepository) ListReadingHistory(userID int) []*ReadingHistory {
@@ -561,6 +686,14 @@ func (r *AppRepository) AddReadingHistory(userID int, input ReadingHistoryInput)
 		return nil, err
 	}
 	return entry, nil
+}
+
+func (r *AppRepository) ClearReadingHistory(userID int) error {
+	_, err := r.db.Exec(
+		"DELETE FROM reading_history WHERE user_id = $1",
+		userID,
+	)
+	return err
 }
 
 func (r *AppRepository) ListFollows(userID int) []*Follow {
@@ -674,12 +807,71 @@ func (r *AppRepository) invalidateNovelsCache() {
 
 func (r *AppRepository) GetSiteSettings() (*SiteSettings, error) {
 	var settings SiteSettings
-	err := r.db.QueryRow(
-		`SELECT id, title, tagline, logo_url, updated_at FROM site_settings WHERE id = 1`,
-	).Scan(&settings.ID, &settings.Title, &settings.Tagline, &settings.LogoURL, &settings.UpdatedAt)
+		err := r.db.QueryRow(
+			`SELECT id, title, tagline, logo_url, logo_alt, headline, hero_description,
+			 primary_button, secondary_button, accent_color, highlight_label,
+			 facebook_url, discord_url,
+			 footer_updates_label, footer_updates_url,
+			 footer_series_label, footer_series_url,
+			 footer_admin_label, footer_admin_url,
+			 footer_link4_label, footer_link4_url,
+			 footer_link5_label, footer_link5_url,
+			 updated_at
+			 FROM site_settings WHERE id = 1`,
+		).Scan(
+		&settings.ID,
+		&settings.Title,
+		&settings.Tagline,
+		&settings.LogoURL,
+		&settings.LogoAlt,
+		&settings.Headline,
+		&settings.HeroText,
+		&settings.PrimaryCta,
+		&settings.SecondaryCta,
+		&settings.AccentColor,
+		&settings.HighlightLabel,
+		&settings.FacebookUrl,
+		&settings.DiscordUrl,
+		&settings.FooterUpdatesLabel,
+		&settings.FooterUpdatesUrl,
+		&settings.FooterSeriesLabel,
+		&settings.FooterSeriesUrl,
+		&settings.FooterAdminLabel,
+		&settings.FooterAdminUrl,
+		&settings.FooterLink4Label,
+		&settings.FooterLink4Url,
+		&settings.FooterLink5Label,
+		&settings.FooterLink5Url,
+		&settings.UpdatedAt,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return &SiteSettings{ID: 1, Title: "Nocturne Shelf", Tagline: "A minimalist novel reader.", LogoURL: "", UpdatedAt: time.Now()}, nil
+			return &SiteSettings{
+				ID:            1,
+				Title:         "Nocturne Shelf",
+				Tagline:       "A minimalist novel reader.",
+				LogoURL:       "",
+				LogoAlt:       "",
+				Headline:      "",
+				HeroText:      "",
+				PrimaryCta:    "",
+				SecondaryCta:  "",
+				AccentColor:   "",
+				HighlightLabel: "",
+				FacebookUrl: "",
+				DiscordUrl: "",
+				FooterUpdatesLabel: "Updates",
+				FooterUpdatesUrl: "/updates",
+				FooterSeriesLabel: "Series",
+				FooterSeriesUrl: "/library",
+				FooterAdminLabel: "Admin",
+				FooterAdminUrl: "/admin",
+				FooterLink4Label: "",
+				FooterLink4Url: "",
+				FooterLink5Label: "",
+				FooterLink5Url: "",
+				UpdatedAt:     time.Now(),
+			}, nil
 		}
 		return nil, err
 	}
@@ -692,15 +884,85 @@ func (r *AppRepository) UpdateSiteSettings(input SiteSettingsInput) (*SiteSettin
 		Title:     strings.TrimSpace(input.Title),
 		Tagline:   strings.TrimSpace(input.Tagline),
 		LogoURL:   strings.TrimSpace(input.LogoURL),
+		LogoAlt:   strings.TrimSpace(input.LogoAlt),
+		Headline:  strings.TrimSpace(input.Headline),
+		HeroText:  strings.TrimSpace(input.HeroText),
+		PrimaryCta: strings.TrimSpace(input.PrimaryCta),
+		SecondaryCta: strings.TrimSpace(input.SecondaryCta),
+		AccentColor: strings.TrimSpace(input.AccentColor),
+		HighlightLabel: strings.TrimSpace(input.HighlightLabel),
+		FacebookUrl: strings.TrimSpace(input.FacebookUrl),
+		DiscordUrl: strings.TrimSpace(input.DiscordUrl),
+		FooterUpdatesLabel: strings.TrimSpace(input.FooterUpdatesLabel),
+		FooterUpdatesUrl: strings.TrimSpace(input.FooterUpdatesUrl),
+		FooterSeriesLabel: strings.TrimSpace(input.FooterSeriesLabel),
+		FooterSeriesUrl: strings.TrimSpace(input.FooterSeriesUrl),
+		FooterAdminLabel: strings.TrimSpace(input.FooterAdminLabel),
+		FooterAdminUrl: strings.TrimSpace(input.FooterAdminUrl),
+		FooterLink4Label: strings.TrimSpace(input.FooterLink4Label),
+		FooterLink4Url: strings.TrimSpace(input.FooterLink4Url),
+		FooterLink5Label: strings.TrimSpace(input.FooterLink5Label),
+		FooterLink5Url: strings.TrimSpace(input.FooterLink5Url),
 		UpdatedAt: time.Now(),
 	}
 	_, err := r.db.Exec(
-		`INSERT INTO site_settings (id, title, tagline, logo_url, updated_at)
-		 VALUES (1, $1, $2, $3, $4)
-		 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, tagline = EXCLUDED.tagline, logo_url = EXCLUDED.logo_url, updated_at = EXCLUDED.updated_at`,
+		`INSERT INTO site_settings (
+			id, title, tagline, logo_url, logo_alt, headline, hero_description,
+			primary_button, secondary_button, accent_color, highlight_label,
+			facebook_url, discord_url,
+			footer_updates_label, footer_updates_url,
+			footer_series_label, footer_series_url,
+			footer_admin_label, footer_admin_url,
+			footer_link4_label, footer_link4_url,
+			footer_link5_label, footer_link5_url,
+			updated_at
+		 ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+		 ON CONFLICT (id) DO UPDATE SET
+			 title = EXCLUDED.title,
+			 tagline = EXCLUDED.tagline,
+			 logo_url = EXCLUDED.logo_url,
+			 logo_alt = EXCLUDED.logo_alt,
+			 headline = EXCLUDED.headline,
+			 hero_description = EXCLUDED.hero_description,
+			 primary_button = EXCLUDED.primary_button,
+			 secondary_button = EXCLUDED.secondary_button,
+			 accent_color = EXCLUDED.accent_color,
+			 highlight_label = EXCLUDED.highlight_label,
+			 facebook_url = EXCLUDED.facebook_url,
+			 discord_url = EXCLUDED.discord_url,
+			 footer_updates_label = EXCLUDED.footer_updates_label,
+			 footer_updates_url = EXCLUDED.footer_updates_url,
+			 footer_series_label = EXCLUDED.footer_series_label,
+			 footer_series_url = EXCLUDED.footer_series_url,
+			 footer_admin_label = EXCLUDED.footer_admin_label,
+			 footer_admin_url = EXCLUDED.footer_admin_url,
+			 footer_link4_label = EXCLUDED.footer_link4_label,
+			 footer_link4_url = EXCLUDED.footer_link4_url,
+			 footer_link5_label = EXCLUDED.footer_link5_label,
+			 footer_link5_url = EXCLUDED.footer_link5_url,
+			 updated_at = EXCLUDED.updated_at`,
 		settings.Title,
 		settings.Tagline,
 		settings.LogoURL,
+		settings.LogoAlt,
+		settings.Headline,
+		settings.HeroText,
+		settings.PrimaryCta,
+		settings.SecondaryCta,
+		settings.AccentColor,
+		settings.HighlightLabel,
+		settings.FacebookUrl,
+		settings.DiscordUrl,
+		settings.FooterUpdatesLabel,
+		settings.FooterUpdatesUrl,
+		settings.FooterSeriesLabel,
+		settings.FooterSeriesUrl,
+		settings.FooterAdminLabel,
+		settings.FooterAdminUrl,
+		settings.FooterLink4Label,
+		settings.FooterLink4Url,
+		settings.FooterLink5Label,
+		settings.FooterLink5Url,
 		settings.UpdatedAt,
 	)
 	if err != nil {
@@ -1027,4 +1289,26 @@ func (r *AppRepository) CreateIllustration(input IllustrationInput) (*Illustrati
 		return nil, err
 	}
 	return illustration, nil
+}
+
+func (r *AppRepository) ListNovelChapterStats() []*NovelChapterStat {
+	rows, err := r.db.Query(
+		`SELECT novel_id, COUNT(*) AS chapter_count, COALESCE(MAX(id), 0) AS latest_chapter_id
+		 FROM chapters
+		 GROUP BY novel_id`,
+	)
+	if err != nil {
+		return []*NovelChapterStat{}
+	}
+	defer rows.Close()
+
+	items := make([]*NovelChapterStat, 0)
+	for rows.Next() {
+		var stat NovelChapterStat
+		if err := rows.Scan(&stat.NovelID, &stat.ChapterCount, &stat.LatestChapterID); err != nil {
+			continue
+		}
+		items = append(items, &stat)
+	}
+	return items
 }

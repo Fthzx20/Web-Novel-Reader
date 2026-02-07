@@ -6,6 +6,7 @@ type Repository interface {
 	CreateNovel(input NovelInput) (*Novel, error)
 	UpdateNovel(id int, input NovelInput) (*Novel, error)
 	DeleteNovel(id int) error
+	ListNovelChapterStats() []*NovelChapterStat
 	ListChaptersByNovel(novelID int) ([]*Chapter, error)
 	GetChapter(id int) (*Chapter, error)
 	CreateChapter(novelID int, input ChapterInput) (*Chapter, error)
@@ -19,8 +20,14 @@ type Repository interface {
 	CreateUser(name, role string) (*User, error)
 	CreateAuthUser(input AuthRegisterInput) (*AuthUser, error)
 	GetAuthUserByEmail(email string) (*AuthUser, error)
+	GetAuthUserByID(id int) (*AuthUser, error)
+	ListAuthUsers() []*AuthUser
+	UpdateAuthUserRole(id int, role string) (*AuthUser, error)
+	UpdateAuthUserStatus(id int, status string) (*AuthUser, error)
+	DeleteAuthUser(id int) error
 	ListReadingHistory(userID int) []*ReadingHistory
 	AddReadingHistory(userID int, input ReadingHistoryInput) (*ReadingHistory, error)
+	ClearReadingHistory(userID int) error
 	ListFollows(userID int) []*Follow
 	AddFollow(userID int, novelID int) (*Follow, error)
 	RemoveFollow(userID int, novelID int) error

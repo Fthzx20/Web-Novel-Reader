@@ -78,6 +78,7 @@ func (s *Store) seed() {
 
 	chapter, _ := s.CreateChapter(novel.ID, ChapterInput{
 		Number:  1,
+		Volume:  1,
 		Title:   "The Cipher District",
 		Content: "Neon rain ran down the archive walls as the courier listened.",
 	})
@@ -110,6 +111,7 @@ func (s *Store) CreateAuthUser(input AuthRegisterInput) (*AuthUser, error) {
 		Email:        email,
 		PasswordHash: hash,
 		Role:         role,
+		Status:       "active",
 		CreatedAt:    time.Now(),
 	}
 	s.authUsers[user.ID] = user
@@ -134,6 +136,61 @@ func (s *Store) GetAuthUserByEmail(email string) (*AuthUser, error) {
 		return nil, errNotFound
 	}
 	return user, nil
+}
+
+func (s *Store) GetAuthUserByID(id int) (*AuthUser, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	user, ok := s.authUsers[id]
+	if !ok {
+		return nil, errNotFound
+	}
+	return user, nil
+}
+
+func (s *Store) ListAuthUsers() []*AuthUser {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	items := make([]*AuthUser, 0, len(s.authUsers))
+	for _, user := range s.authUsers {
+		items = append(items, user)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	return items
+}
+
+func (s *Store) UpdateAuthUserRole(id int, role string) (*AuthUser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.authUsers[id]
+	if !ok {
+		return nil, errNotFound
+	}
+	user.Role = strings.TrimSpace(role)
+	return user, nil
+}
+
+func (s *Store) UpdateAuthUserStatus(id int, status string) (*AuthUser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.authUsers[id]
+	if !ok {
+		return nil, errNotFound
+	}
+	user.Status = strings.TrimSpace(status)
+	return user, nil
+}
+
+func (s *Store) DeleteAuthUser(id int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.authUsers[id]
+	if !ok {
+		return errNotFound
+	}
+	delete(s.authUsersByEmail, normalizeEmail(user.Email))
+	delete(s.authUsers, id)
+	return nil
 }
 
 func (s *Store) ListReadingHistory(userID int) []*ReadingHistory {
@@ -164,6 +221,17 @@ func (s *Store) AddReadingHistory(userID int, input ReadingHistoryInput) (*Readi
 	s.history[entry.ID] = entry
 	s.nextHistoryID++
 	return entry, nil
+}
+
+func (s *Store) ClearReadingHistory(userID int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, entry := range s.history {
+		if entry.UserID == userID {
+			delete(s.history, id)
+		}
+	}
+	return nil
 }
 
 func (s *Store) ListFollows(userID int) []*Follow {
@@ -260,7 +328,32 @@ func (s *Store) GetSiteSettings() (*SiteSettings, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.settings == nil {
-		return &SiteSettings{ID: 1, Title: "Nocturne Shelf", Tagline: "A minimalist novel reader.", LogoURL: "", UpdatedAt: time.Now()}, nil
+		return &SiteSettings{
+			ID:        1,
+			Title:     "Nocturne Shelf",
+			Tagline:   "A minimalist novel reader.",
+			LogoURL:   "",
+			LogoAlt:   "",
+			Headline:  "",
+			HeroText:  "",
+			PrimaryCta: "",
+			SecondaryCta: "",
+			AccentColor: "",
+			HighlightLabel: "",
+			FacebookUrl: "",
+			DiscordUrl: "",
+			FooterUpdatesLabel: "Updates",
+			FooterUpdatesUrl: "/updates",
+			FooterSeriesLabel: "Series",
+			FooterSeriesUrl: "/library",
+			FooterAdminLabel: "Admin",
+			FooterAdminUrl: "/admin",
+			FooterLink4Label: "",
+			FooterLink4Url: "",
+			FooterLink5Label: "",
+			FooterLink5Url: "",
+			UpdatedAt: time.Now(),
+		}, nil
 	}
 	return s.settings, nil
 }
@@ -273,6 +366,25 @@ func (s *Store) UpdateSiteSettings(input SiteSettingsInput) (*SiteSettings, erro
 		Title:     strings.TrimSpace(input.Title),
 		Tagline:   strings.TrimSpace(input.Tagline),
 		LogoURL:   strings.TrimSpace(input.LogoURL),
+		LogoAlt:   strings.TrimSpace(input.LogoAlt),
+		Headline:  strings.TrimSpace(input.Headline),
+		HeroText:  strings.TrimSpace(input.HeroText),
+		PrimaryCta: strings.TrimSpace(input.PrimaryCta),
+		SecondaryCta: strings.TrimSpace(input.SecondaryCta),
+		AccentColor: strings.TrimSpace(input.AccentColor),
+		HighlightLabel: strings.TrimSpace(input.HighlightLabel),
+		FacebookUrl: strings.TrimSpace(input.FacebookUrl),
+		DiscordUrl: strings.TrimSpace(input.DiscordUrl),
+		FooterUpdatesLabel: strings.TrimSpace(input.FooterUpdatesLabel),
+		FooterUpdatesUrl: strings.TrimSpace(input.FooterUpdatesUrl),
+		FooterSeriesLabel: strings.TrimSpace(input.FooterSeriesLabel),
+		FooterSeriesUrl: strings.TrimSpace(input.FooterSeriesUrl),
+		FooterAdminLabel: strings.TrimSpace(input.FooterAdminLabel),
+		FooterAdminUrl: strings.TrimSpace(input.FooterAdminUrl),
+		FooterLink4Label: strings.TrimSpace(input.FooterLink4Label),
+		FooterLink4Url: strings.TrimSpace(input.FooterLink4Url),
+		FooterLink5Label: strings.TrimSpace(input.FooterLink5Label),
+		FooterLink5Url: strings.TrimSpace(input.FooterLink5Url),
 		UpdatedAt: time.Now(),
 	}
 	return s.settings, nil
@@ -448,10 +560,15 @@ func (s *Store) CreateChapter(novelID int, input ChapterInput) (*Chapter, error)
 		return nil, errNotFound
 	}
 	now := time.Now()
+	volume := input.Volume
+	if volume < 1 {
+		volume = 1
+	}
 	chapter := &Chapter{
 		ID:        s.nextChapterID,
 		NovelID:   novelID,
 		Number:    input.Number,
+		Volume:    volume,
 		Title:     strings.TrimSpace(input.Title),
 		Content:   strings.TrimSpace(input.Content),
 		WordCount: len(strings.Fields(input.Content)),
@@ -463,6 +580,29 @@ func (s *Store) CreateChapter(novelID int, input ChapterInput) (*Chapter, error)
 	return chapter, nil
 }
 
+func (s *Store) ListNovelChapterStats() []*NovelChapterStat {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	statsByNovel := make(map[int]*NovelChapterStat)
+	for _, chapter := range s.chapters {
+		stat, ok := statsByNovel[chapter.NovelID]
+		if !ok {
+			stat = &NovelChapterStat{NovelID: chapter.NovelID}
+			statsByNovel[chapter.NovelID] = stat
+		}
+		stat.ChapterCount++
+		if chapter.ID > stat.LatestChapterID {
+			stat.LatestChapterID = chapter.ID
+		}
+	}
+	items := make([]*NovelChapterStat, 0, len(statsByNovel))
+	for _, stat := range statsByNovel {
+		items = append(items, stat)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].NovelID < items[j].NovelID })
+	return items
+}
+
 func (s *Store) UpdateChapter(id int, input ChapterInput) (*Chapter, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -471,6 +611,9 @@ func (s *Store) UpdateChapter(id int, input ChapterInput) (*Chapter, error) {
 		return nil, errNotFound
 	}
 	chapter.Number = input.Number
+	if input.Volume >= 1 {
+		chapter.Volume = input.Volume
+	}
 	chapter.Title = strings.TrimSpace(input.Title)
 	chapter.Content = strings.TrimSpace(input.Content)
 	chapter.WordCount = len(strings.Fields(input.Content))
@@ -565,9 +708,14 @@ func (s *Store) CreateRating(novelID int, input RatingInput) (*Rating, error) {
 func (s *Store) ListUsers() []*User {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	items := make([]*User, 0, len(s.users))
-	for _, user := range s.users {
-		items = append(items, user)
+	items := make([]*User, 0, len(s.authUsers))
+	for _, user := range s.authUsers {
+		items = append(items, &User{
+			ID:        user.ID,
+			Name:      user.Name,
+			Role:      user.Role,
+			CreatedAt: user.CreatedAt,
+		})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 	return items
