@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -137,10 +138,13 @@ export default function BookmarksPage() {
                   <div className="flex items-center gap-4">
                     <div className="flex h-20 w-14 items-center justify-center overflow-hidden rounded-md border border-border/50 bg-card/60">
                       {coverUrl ? (
-                        <img
+                        <Image
                           src={coverUrl}
                           alt={title}
+                          width={56}
+                          height={80}
                           className="h-full w-full object-cover"
+                          unoptimized
                         />
                       ) : (
                         <span className="text-sm font-semibold">{title.charAt(0)}</span>

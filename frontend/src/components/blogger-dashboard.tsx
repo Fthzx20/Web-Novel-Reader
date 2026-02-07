@@ -143,6 +143,7 @@ export function BloggerDashboard() {
     });
   }, [novels]);
 
+  const recentNovels = useMemo(() => sortedNovels.slice(0, 3), [sortedNovels]);
   const libraryPreview = useMemo(() => sortedNovels.slice(0, 3), [sortedNovels]);
 
   const totalChapters = useMemo(() => {
@@ -451,10 +452,13 @@ export function BloggerDashboard() {
                             className={`flex h-16 w-12 items-center justify-center rounded-lg border border-border/50 bg-gradient-to-br ${coverTones[index % coverTones.length]}`}
                           >
                             {coverUrl ? (
-                              <img
+                              <Image
                                 src={coverUrl}
                                 alt={novel.title}
+                                width={48}
+                                height={64}
                                 className="h-full w-full rounded-lg object-cover"
+                                unoptimized
                               />
                             ) : (
                               <span className="text-xs font-semibold text-foreground">

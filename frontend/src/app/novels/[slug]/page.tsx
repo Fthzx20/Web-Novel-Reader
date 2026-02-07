@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -253,10 +254,13 @@ export default function NovelPage() {
                 className="flex h-80 w-56 items-center justify-center rounded-2xl border border-border/50 bg-card/60 text-3xl font-semibold sm:h-96 sm:w-64"
               >
                 {coverUrl ? (
-                  <img
+                  <Image
                     src={coverUrl}
                     alt={novel.title}
+                    width={256}
+                    height={384}
                     className="h-full w-full rounded-2xl object-cover"
+                    unoptimized
                   />
                 ) : (
                   novel.title.charAt(0)
@@ -297,7 +301,6 @@ export default function NovelPage() {
               <Button
                 variant={follow ? "secondary" : "outline"}
                 onClick={async () => {
-                  const session = loadSession();
                   if (!session) {
                     setNotice("Login to follow series.");
                     return;
@@ -321,7 +324,6 @@ export default function NovelPage() {
                 variant="outline"
                 className="gap-2"
                 onClick={async () => {
-                  const session = loadSession();
                   if (!session) {
                     setNotice("Login to bookmark series.");
                     return;
@@ -456,7 +458,6 @@ export default function NovelPage() {
                       variant={rating === index + 1 ? "secondary" : "outline"}
                       size="icon"
                       onClick={async () => {
-                        const session = loadSession();
                         if (!session) {
                           setNotice("Login to rate this series.");
                           return;
@@ -511,7 +512,6 @@ export default function NovelPage() {
                     if (!commentText.trim() || !commentsChapterId) {
                       return;
                     }
-                    const session = loadSession();
                     if (!session) {
                       setNotice("Login to comment.");
                       return;

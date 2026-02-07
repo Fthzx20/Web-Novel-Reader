@@ -17,6 +17,7 @@ export function ImageElementStatic(
           className="relative min-w-[92px] max-w-full"
           style={{ textAlign: align }}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             alt={(props.attributes as { alt?: string }).alt}
             className={cn(

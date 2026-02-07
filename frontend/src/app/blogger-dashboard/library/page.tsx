@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, FileText, Plus, Trash2 } from "lucide-react";
@@ -168,10 +169,13 @@ export default function BloggerLibraryPage() {
                     <div className="flex items-start gap-4">
                       <div className="h-24 w-16 shrink-0 overflow-hidden rounded-lg border border-border/50 bg-background/60">
                         {coverUrl ? (
-                          <img
+                          <Image
                             src={coverUrl}
                             alt={novel.title}
+                            width={64}
+                            height={96}
                             className="h-full w-full object-cover"
+                            unoptimized
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-sm font-semibold">

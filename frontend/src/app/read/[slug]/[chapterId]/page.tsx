@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -74,23 +75,28 @@ export default function ReaderPage() {
     return parts.length ? parts : ["This chapter is empty."];
   }, [normalizedContent]);
 
-  const chapter = rawChapter
-    ? {
-        id: rawChapter.id,
-        number: rawChapter.number,
-        volume: rawChapter.volume ?? 1,
-        title: rawChapter.title,
-        content: chapterContent,
-      }
-    : {
-        id: 0,
-        number: 0,
-        volume: 1,
-        title: "Chapter unavailable",
-        content: [
-          notice || "This chapter is not available yet. Try another chapter from the list.",
-        ],
-      };
+  const chapter = useMemo(
+    () =>
+      rawChapter
+        ? {
+            id: rawChapter.id,
+            number: rawChapter.number,
+            volume: rawChapter.volume ?? 1,
+            title: rawChapter.title,
+            content: chapterContent,
+          }
+        : {
+            id: 0,
+            number: 0,
+            volume: 1,
+            title: "Chapter unavailable",
+            content: [
+              notice ||
+                "This chapter is not available yet. Try another chapter from the list.",
+            ],
+          },
+    [chapterContent, notice, rawChapter]
+  );
 
   const chapterWords = useMemo(() => {
     return normalizedContent ? normalizedContent.trim().split(/\s+/).length : 0;
@@ -157,7 +163,7 @@ export default function ReaderPage() {
       chapterId: chapter.id,
       chapterTitle: `Volume ${chapter.volume} · Chapter ${chapter.number}: ${chapter.title}`,
     }).catch(() => null);
-  }, [chapter.id, chapter.number, chapter.title, novel?.slug, novel?.title]);
+  }, [chapter.id, chapter.number, chapter.title, chapter.volume, novel]);
 
   const widthClass =
     width === "narrow"
@@ -211,11 +217,15 @@ export default function ReaderPage() {
           }
           const url = resolveAssetUrl(match[1]);
           return (
-            <img
+            <Image
               key={partIndex}
               src={url}
               alt="Illustration"
-              className="mx-auto my-6 block w-full max-w-3xl rounded-lg border border-border/40"
+              width={1200}
+              height={800}
+              className="mx-auto my-6 block h-auto w-full max-w-3xl rounded-lg border border-border/40"
+              sizes="(max-width: 768px) 100vw, 768px"
+              unoptimized
             />
           );
         })}

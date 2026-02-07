@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, BookmarkCheck, ChevronDown, Save } from "lucide-react";
@@ -482,10 +483,13 @@ export default function EditNovelPage() {
               </div>
               <div className="h-40 w-28 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-card/60">
                 {resolvedCoverUrl ? (
-                  <img
+                  <Image
                     src={resolvedCoverUrl}
                     alt={novel?.title ?? "Novel cover"}
+                    width={112}
+                    height={160}
                     className="h-full w-full object-cover"
+                    unoptimized
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { SiteFooter } from "@/components/site/site-footer";
@@ -175,10 +176,13 @@ export default function AdminSettingsPage() {
                 />
                 {settings.logoUrl && (
                   <div className="flex items-center gap-3 rounded-md border border-border/60 p-2">
-                    <img
+                    <Image
                       src={resolveAssetUrl(settings.logoUrl)}
                       alt="Logo preview"
+                      width={40}
+                      height={40}
                       className="h-10 w-10 object-contain"
+                      unoptimized
                     />
                     <span className="text-xs text-muted-foreground">{settings.logoUrl}</span>
                   </div>

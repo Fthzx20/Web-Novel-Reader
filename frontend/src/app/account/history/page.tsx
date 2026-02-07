@@ -25,6 +25,7 @@ export default function ReadingHistoryPage() {
   const [items, setItems] = useState<HistoryItem[] | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const isLoading = session && items === null;
 
   useEffect(() => {
     if (!session) {
@@ -89,7 +90,7 @@ export default function ReadingHistoryPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              disabled={loading || items.length === 0}
+              disabled={isLoading || (items?.length ?? 0) === 0}
               onClick={async () => {
                 if (typeof window !== "undefined") {
                   const confirmed = window.confirm(

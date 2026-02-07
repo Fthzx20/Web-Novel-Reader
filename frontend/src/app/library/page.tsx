@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -226,10 +227,13 @@ export default function LibraryPage() {
                       aria-hidden
                     >
                       {novel.coverUrl ? (
-                        <img
+                        <Image
                           src={coverUrl}
                           alt={novel.title}
+                          width={80}
+                          height={112}
                           className="h-full w-full rounded-xl object-cover"
+                          unoptimized
                         />
                       ) : (
                         <span className="text-lg font-semibold">
