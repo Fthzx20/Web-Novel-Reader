@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { fetchNovels, followNovel, unfollowNovel, type AdminNovel } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { resolveAssetUrl } from "@/lib/utils";
 
 const sortOptions = [
@@ -37,6 +37,7 @@ const toDateKey = (value: string) => {
 
 export default function LibraryPage() {
   const searchParams = useSearchParams();
+  const session = useAuthSession();
   const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [activeStatus, setActiveStatus] = useState("All");
   const [activeTag, setActiveTag] = useState("All");
@@ -273,7 +274,6 @@ export default function LibraryPage() {
                         size="sm"
                         className="flex-1"
                         onClick={async () => {
-                          const session = loadSession();
                           if (!session) {
                             setNotice("Login to follow series.");
                             return;

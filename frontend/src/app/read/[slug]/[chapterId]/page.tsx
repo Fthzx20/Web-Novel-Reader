@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchChaptersByNovel, fetchNovels, recordReadingHistory, type AdminNovel, type Chapter } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { coerceContentToText } from "@/lib/plate-content";
 import { resolveAssetUrl } from "@/lib/utils";
 
@@ -37,6 +37,7 @@ export default function ReaderPage() {
   const [novel, setNovel] = useState<AdminNovel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [notice, setNotice] = useState("");
+  const session = useAuthSession();
 
   useEffect(() => {
     if (!resolvedSlug) {
@@ -153,7 +154,6 @@ export default function ReaderPage() {
     if (typeof window === "undefined") {
       return;
     }
-    const session = loadSession();
     if (!session || !chapter.id || !novel) {
       return;
     }
@@ -163,7 +163,7 @@ export default function ReaderPage() {
       chapterId: chapter.id,
       chapterTitle: `Volume ${chapter.volume} · Chapter ${chapter.number}: ${chapter.title}`,
     }).catch(() => null);
-  }, [chapter.id, chapter.number, chapter.title, chapter.volume, novel]);
+  }, [chapter.id, chapter.number, chapter.title, chapter.volume, novel, session]);
 
   const widthClass =
     width === "narrow"

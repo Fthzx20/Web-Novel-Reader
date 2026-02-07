@@ -15,7 +15,7 @@ import {
   updateUserStatus,
   type AdminUser,
 } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 
 const formatDate = (value: string) => {
   const parsed = Date.parse(value);
@@ -73,7 +73,7 @@ export default function AccountModerationPage() {
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
-  const session = loadSession();
+  const session = useAuthSession();
 
   const loadUsers = async () => {
     setNotice("");
