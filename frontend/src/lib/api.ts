@@ -118,7 +118,7 @@ export type NovelChapterStat = {
   latestChapterId: number;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
 const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? "";
 
 async function getErrorMessage(response: Response, fallback: string) {
@@ -628,6 +628,13 @@ export type SiteSettings = {
   title: string;
   tagline: string;
   logoUrl: string;
+  logoAlt: string;
+  headline: string;
+  heroDescription: string;
+  primaryButton: string;
+  secondaryButton: string;
+  accentColor: string;
+  highlightLabel: string;
   updatedAt: string;
 };
 
@@ -650,6 +657,13 @@ export async function updateSiteSettings(input: {
   title: string;
   tagline: string;
   logoUrl: string;
+  logoAlt: string;
+  headline: string;
+  heroDescription: string;
+  primaryButton: string;
+  secondaryButton: string;
+  accentColor: string;
+  highlightLabel: string;
 }): Promise<SiteSettings> {
   const response = await fetch(`${API_BASE}/settings`, {
     method: "PUT",

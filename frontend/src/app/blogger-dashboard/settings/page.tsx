@@ -38,6 +38,16 @@ export default function BloggerSettingsPage() {
         setTitle(settings.title || "Malaz Translation");
         setTagline(settings.tagline || "Fast updates, clean reading.");
         setLogoUrl(settings.logoUrl || "");
+        setLogoAlt(settings.logoAlt || "Malaz logo");
+        setHeadline(settings.headline || "Fast updates, clean reading, and zero distractions.");
+        setHeroDescription(
+          settings.heroDescription ||
+            "Track new chapters, follow translation teams, and read on any screen with a lightweight layout that keeps you focused."
+        );
+        setPrimaryButton(settings.primaryButton || "Start reading");
+        setSecondaryButton(settings.secondaryButton || "Browse updates");
+        setAccentColor(settings.accentColor || "#FBBF24");
+        setHighlightLabel(settings.highlightLabel || "Malaz Translation Project");
       })
       .catch((err) => {
         setNotice(err instanceof Error ? err.message : "Failed to load settings.");
@@ -59,6 +69,13 @@ export default function BloggerSettingsPage() {
         title: title.trim(),
         tagline: tagline.trim(),
         logoUrl: logoUrl.trim(),
+        logoAlt: logoAlt.trim(),
+        headline: headline.trim(),
+        heroDescription: heroDescription.trim(),
+        primaryButton: primaryButton.trim(),
+        secondaryButton: secondaryButton.trim(),
+        accentColor: accentColor.trim(),
+        highlightLabel: highlightLabel.trim(),
       });
       setNotice("Settings saved.");
     } catch (err) {

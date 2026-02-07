@@ -90,6 +90,13 @@ type SiteSettingsInput struct {
 	Title   string `json:"title"`
 	Tagline string `json:"tagline"`
 	LogoURL string `json:"logoUrl"`
+	LogoAlt string `json:"logoAlt"`
+	Headline string `json:"headline"`
+	HeroText string `json:"heroDescription"`
+	PrimaryCta string `json:"primaryButton"`
+	SecondaryCta string `json:"secondaryButton"`
+	AccentColor string `json:"accentColor"`
+	HighlightLabel string `json:"highlightLabel"`
 }
 
 type AnnouncementInput struct {
@@ -119,6 +126,48 @@ type ModerationReportInput struct {
 type IllustrationInput struct {
 	URL          string `json:"url"`
 	OriginalName string `json:"originalName"`
+}
+
+func normalizeRole(role string) string {
+	return strings.ToLower(strings.TrimSpace(role))
+}
+
+func normalizeStatus(status string) string {
+	return strings.ToLower(strings.TrimSpace(status))
+}
+
+func isValidRole(role string) bool {
+	switch normalizeRole(role) {
+	case "admin", "user":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidStatus(status string) bool {
+	switch normalizeStatus(status) {
+	case "active", "banned":
+		return true
+	default:
+		return false
+	}
+}
+
+func isLastActiveAdmin(repo Repository, target *AuthUser) bool {
+	if target == nil {
+		return false
+	}
+	if !strings.EqualFold(target.Role, "admin") || strings.EqualFold(target.Status, "banned") {
+		return false
+	}
+	admins := 0
+	for _, user := range repo.ListAuthUsers() {
+		if strings.EqualFold(user.Role, "admin") && !strings.EqualFold(user.Status, "banned") {
+			admins++
+		}
+	}
+	return admins <= 1
 }
 
 func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
@@ -190,7 +239,7 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 	})
 
 	me := router.Group("/me")
-	me.Use(userAuth(cfg.JWTSecret))
+	me.Use(userAuth(cfg.JWTSecret, repo))
 	me.GET("/history", func(c *gin.Context) {
 		userID := c.GetInt("userID")
 		items := repo.ListReadingHistory(userID)
@@ -748,16 +797,30 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
 			return
 		}
+		current, err := repo.GetAuthUserByID(userID)
+		if err != nil {
+			respondNotFound(c, err)
+			return
+		}
 		var input UserRoleInput
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if strings.TrimSpace(input.Role) == "" {
+		role := normalizeRole(input.Role)
+		if role == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "role is required"})
 			return
 		}
-		user, err := repo.UpdateAuthUserRole(userID, input.Role)
+		if !isValidRole(role) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+			return
+		}
+		if strings.EqualFold(current.Role, "admin") && role != "admin" && isLastActiveAdmin(repo, current) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot remove the last active admin"})
+			return
+		}
+		user, err := repo.UpdateAuthUserRole(userID, role)
 		if err != nil {
 			respondNotFound(c, err)
 			return
@@ -771,16 +834,30 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
 			return
 		}
+		current, err := repo.GetAuthUserByID(userID)
+		if err != nil {
+			respondNotFound(c, err)
+			return
+		}
 		var input UserStatusInput
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if strings.TrimSpace(input.Status) == "" {
+		status := normalizeStatus(input.Status)
+		if status == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "status is required"})
 			return
 		}
-		user, err := repo.UpdateAuthUserStatus(userID, input.Status)
+		if !isValidStatus(status) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+			return
+		}
+		if strings.EqualFold(current.Role, "admin") && status == "banned" && isLastActiveAdmin(repo, current) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot ban the last active admin"})
+			return
+		}
+		user, err := repo.UpdateAuthUserStatus(userID, status)
 		if err != nil {
 			respondNotFound(c, err)
 			return
@@ -792,6 +869,15 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 		userID := parseID(c.Param("id"))
 		if userID <= 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+			return
+		}
+		current, err := repo.GetAuthUserByID(userID)
+		if err != nil {
+			respondNotFound(c, err)
+			return
+		}
+		if strings.EqualFold(current.Role, "admin") && isLastActiveAdmin(repo, current) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete the last active admin"})
 			return
 		}
 		if err := repo.DeleteAuthUser(userID); err != nil {

@@ -22,7 +22,7 @@ type Config struct {
 func LoadConfig() Config {
 	loadDotEnv()
 	return Config{
-		Port:              getEnv("PORT", "8080"),
+		Port:              getEnv("PORT", "8081"),
 		APIKey:            os.Getenv("API_KEY"),
 		DatabaseURL:       os.Getenv("DATABASE_URL"),
 		DBMaxConns:        getEnvInt("DB_MAX_CONNS", 10),

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { fetchNovels, fetchReadingHistory, type AdminNovel } from "@/lib/api";
+import { fetchNovels, fetchReadingHistory, fetchSiteSettings, type AdminNovel, type SiteSettings } from "@/lib/api";
 import { loadSession, type AuthSession } from "@/lib/auth";
 import { resolveAssetUrl } from "@/lib/utils";
 
@@ -33,6 +33,7 @@ export default function Home() {
     novelTitle: string;
     chapterTitle: string;
   } | null>(null);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => {
     setSession(loadSession());
@@ -44,6 +45,12 @@ export default function Home() {
       .catch((err) =>
         setNotice(err instanceof Error ? err.message : "Failed to load updates.")
       );
+  }, []);
+
+  useEffect(() => {
+    fetchSiteSettings()
+      .then((settings) => setSiteSettings(settings))
+      .catch(() => null);
   }, []);
 
   useEffect(() => {
@@ -101,23 +108,36 @@ export default function Home() {
       <main className="mx-auto w-full max-w-6xl px-6 py-16">
         <section className="grid gap-12 lg:grid-cols-[1.2fr,0.8fr]">
           <div className="space-y-6">
-            <Badge variant="subtle" className="w-fit">
-              Malaz Translation Project
+            <Badge
+              variant="subtle"
+              className="w-fit"
+              style={siteSettings?.accentColor ? { backgroundColor: siteSettings.accentColor, color: "#111827" } : undefined}
+            >
+              {siteSettings?.highlightLabel || "Malaz Translation Project"}
             </Badge>
             <h1 className="text-4xl font-semibold tracking-tight md:text-6xl">
-              Fast updates, clean reading, and zero distractions.
+              {siteSettings?.headline || "Fast updates, clean reading, and zero distractions."}
             </h1>
             <p className="max-w-xl text-lg text-muted-foreground">
-              Track new chapters, follow translation teams, and read on any
-              screen with a lightweight layout that keeps you focused.
+              {siteSettings?.heroDescription ||
+                "Track new chapters, follow translation teams, and read on any screen with a lightweight layout that keeps you focused."}
             </p>
             <div className="flex flex-wrap gap-3">
-              <Button className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90" asChild>
-                <Link href="/library">Browse updates</Link>
+              <Button
+                className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
+                style={siteSettings?.accentColor ? { backgroundColor: siteSettings.accentColor } : undefined}
+                asChild
+              >
+                <Link href="/library">{siteSettings?.primaryButton || "Browse updates"}</Link>
               </Button>
               {isAdmin && (
                 <Button variant="outline" asChild>
                   <Link href="/admin">Upload translation</Link>
+                </Button>
+              )}
+              {!isAdmin && siteSettings?.secondaryButton && (
+                <Button variant="outline" asChild>
+                  <Link href="/updates">{siteSettings.secondaryButton}</Link>
                 </Button>
               )}
             </div>

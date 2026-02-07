@@ -8,7 +8,6 @@ import {
   Bell,
   FileText,
   LayoutDashboard,
-  MessageSquare,
   Pencil,
   Plus,
   ChevronDown,
@@ -42,7 +41,6 @@ import {
 import {
   createNovelAdmin,
   deleteNovelAdmin,
-  fetchComments,
   fetchNovelsAdmin,
   fetchNovelStats,
   fetchSiteSettings,
@@ -53,12 +51,6 @@ import {
 import { loadSession } from "@/lib/auth";
 import { resolveAssetUrl } from "@/lib/utils";
 
-type CommentFeedItem = {
-  author: string;
-  excerpt: string;
-  time: string;
-};
-
 const coverTones = [
   "from-rose-500/40 to-amber-200/30",
   "from-sky-400/40 to-indigo-200/30",
@@ -67,18 +59,9 @@ const coverTones = [
   "from-fuchsia-400/40 to-purple-200/30",
 ];
 
-const excerptText = (value: string, max = 96) => {
-  const trimmed = value.trim();
-  if (trimmed.length <= max) {
-    return trimmed;
-  }
-  return `${trimmed.slice(0, max).trim()}...`;
-};
-
 export function BloggerDashboard() {
   const [novels, setNovels] = useState<AdminNovel[]>([]);
   const [chapterCounts, setChapterCounts] = useState<Record<number, number>>({});
-  const [commentsFeed, setCommentsFeed] = useState<CommentFeedItem[]>([]);
   const [notice, setNotice] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [newPostOpen, setNewPostOpen] = useState(false);
@@ -120,15 +103,6 @@ export function BloggerDashboard() {
         .filter((id): id is number => Boolean(id))
         .slice(0, 3);
 
-      const commentBatches = await Promise.all(
-        recentChapterIds.map((chapterId) => fetchComments(chapterId).catch(() => []))
-      );
-      const flattened = commentBatches.flat().slice(0, 3).map((comment) => ({
-        author: `Reader ${comment.userId}`,
-        excerpt: excerptText(comment.body),
-        time: new Date(comment.createdAt).toLocaleString(),
-      }));
-      setCommentsFeed(flattened);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Failed to load dashboard.");
     }
@@ -282,14 +256,6 @@ export function BloggerDashboard() {
                     <LayoutDashboard className="h-4 w-4 text-amber-200" />
                     Dashboard
                   </Link>
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Posts
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Comments
-                  </div>
                   <Link href="/blogger-dashboard/moderation" className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     Account moderation
@@ -533,50 +499,7 @@ export function BloggerDashboard() {
                 </CardContent>
               </Card>
 
-              <div className="grid gap-6 lg:grid-cols-[0.7fr,1.3fr]">
-                <Card className="border-border/60 bg-card/80">
-                  <CardHeader>
-                    <CardTitle>Community inbox</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 text-sm">
-                    {commentsFeed.length ? (
-                      commentsFeed.map((comment) => (
-                        <div key={`${comment.author}-${comment.time}`} className="space-y-1 rounded-lg border border-border/50 bg-background/60 p-3">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{comment.author}</span>
-                            <span className="text-xs text-muted-foreground">{comment.time}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{comment.excerpt}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No recent comments yet.</p>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card className="border-border/60 bg-card/80">
-                  <CardHeader>
-                    <CardTitle>Editorial calendar</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 text-sm text-muted-foreground">
-                    <div className="rounded-xl border border-border/50 bg-background/60 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em]">Today</p>
-                      <p className="mt-2 text-base font-semibold text-foreground">Publish chapter 49</p>
-                      <p className="text-xs">Finalize translation and illustrations.</p>
-                    </div>
-                    <div className="rounded-xl border border-border/50 bg-background/60 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em]">Tomorrow</p>
-                      <p className="mt-2 text-base font-semibold text-foreground">Newsletter draft</p>
-                      <p className="text-xs">Announce the weekend release queue.</p>
-                    </div>
-                    <div className="rounded-xl border border-border/50 bg-background/60 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em]">Next week</p>
-                      <p className="mt-2 text-base font-semibold text-foreground">Community livestream</p>
-                      <p className="text-xs">Prepare highlights and Q and A prompts.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              
             </main>
           </div>
         </div>

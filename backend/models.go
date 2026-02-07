@@ -89,6 +89,13 @@ type SiteSettings struct {
 	Title     string    `json:"title"`
 	Tagline   string    `json:"tagline"`
 	LogoURL   string    `json:"logoUrl"`
+	LogoAlt   string    `json:"logoAlt"`
+	Headline  string    `json:"headline"`
+	HeroText  string    `json:"heroDescription"`
+	PrimaryCta string   `json:"primaryButton"`
+	SecondaryCta string `json:"secondaryButton"`
+	AccentColor string  `json:"accentColor"`
+	HighlightLabel string `json:"highlightLabel"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 

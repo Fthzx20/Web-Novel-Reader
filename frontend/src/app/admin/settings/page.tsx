@@ -28,6 +28,13 @@ export default function AdminSettingsPage() {
     title: "Malaz Translation",
     tagline: "",
     logoUrl: "favicon.ico",
+    logoAlt: "",
+    headline: "",
+    heroDescription: "",
+    primaryButton: "",
+    secondaryButton: "",
+    accentColor: "",
+    highlightLabel: "",
   });
   const [announcements, setAnnouncements] = useState<
     Array<{ id: number; title: string; body: string }>
@@ -41,7 +48,20 @@ export default function AdminSettingsPage() {
     const session = loadSession();
     setIsAdmin(session?.user.role === "admin");
     fetchSiteSettings()
-      .then((data) => setSettings({ title: data.title, tagline: data.tagline, logoUrl: data.logoUrl }))
+      .then((data) =>
+        setSettings({
+          title: data.title,
+          tagline: data.tagline,
+          logoUrl: data.logoUrl,
+          logoAlt: data.logoAlt,
+          headline: data.headline,
+          heroDescription: data.heroDescription,
+          primaryButton: data.primaryButton,
+          secondaryButton: data.secondaryButton,
+          accentColor: data.accentColor,
+          highlightLabel: data.highlightLabel,
+        })
+      )
       .catch(() => setNotice("Unable to load settings."));
     fetchAnnouncements()
       .then((data) => setAnnouncements(data.map((item) => ({ id: item.id, title: item.title, body: item.body }))))
@@ -140,7 +160,18 @@ export default function AdminSettingsPage() {
                 onClick={async () => {
                   try {
                     const updated = await updateSiteSettings(settings);
-                    setSettings({ title: updated.title, tagline: updated.tagline, logoUrl: updated.logoUrl });
+                    setSettings({
+                      title: updated.title,
+                      tagline: updated.tagline,
+                      logoUrl: updated.logoUrl,
+                      logoAlt: updated.logoAlt,
+                      headline: updated.headline,
+                      heroDescription: updated.heroDescription,
+                      primaryButton: updated.primaryButton,
+                      secondaryButton: updated.secondaryButton,
+                      accentColor: updated.accentColor,
+                      highlightLabel: updated.highlightLabel,
+                    });
                     setNotice("Settings saved.");
                   } catch (err) {
                     setNotice(err instanceof Error ? err.message : "Failed to save settings.");

@@ -467,10 +467,10 @@ func (r *AppRepository) CreateAuthUser(input AuthRegisterInput) (*AuthUser, erro
 	}
 	var existingID int
 	checkErr := r.db.QueryRow("SELECT id FROM auth_users WHERE email = $1", email).Scan(&existingID)
-	if checkErr == nil {
+	switch {
+	case checkErr == nil:
 		return nil, errConflict
-	}
-	if checkErr != nil && !errors.Is(checkErr, sql.ErrNoRows) {
+	case !errors.Is(checkErr, sql.ErrNoRows):
 		return nil, checkErr
 	}
 
@@ -796,11 +796,39 @@ func (r *AppRepository) invalidateNovelsCache() {
 func (r *AppRepository) GetSiteSettings() (*SiteSettings, error) {
 	var settings SiteSettings
 	err := r.db.QueryRow(
-		`SELECT id, title, tagline, logo_url, updated_at FROM site_settings WHERE id = 1`,
-	).Scan(&settings.ID, &settings.Title, &settings.Tagline, &settings.LogoURL, &settings.UpdatedAt)
+		`SELECT id, title, tagline, logo_url, logo_alt, headline, hero_description,
+		 primary_button, secondary_button, accent_color, highlight_label, updated_at
+		 FROM site_settings WHERE id = 1`,
+	).Scan(
+		&settings.ID,
+		&settings.Title,
+		&settings.Tagline,
+		&settings.LogoURL,
+		&settings.LogoAlt,
+		&settings.Headline,
+		&settings.HeroText,
+		&settings.PrimaryCta,
+		&settings.SecondaryCta,
+		&settings.AccentColor,
+		&settings.HighlightLabel,
+		&settings.UpdatedAt,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return &SiteSettings{ID: 1, Title: "Nocturne Shelf", Tagline: "A minimalist novel reader.", LogoURL: "", UpdatedAt: time.Now()}, nil
+			return &SiteSettings{
+				ID:            1,
+				Title:         "Nocturne Shelf",
+				Tagline:       "A minimalist novel reader.",
+				LogoURL:       "",
+				LogoAlt:       "",
+				Headline:      "",
+				HeroText:      "",
+				PrimaryCta:    "",
+				SecondaryCta:  "",
+				AccentColor:   "",
+				HighlightLabel: "",
+				UpdatedAt:     time.Now(),
+			}, nil
 		}
 		return nil, err
 	}
@@ -813,15 +841,42 @@ func (r *AppRepository) UpdateSiteSettings(input SiteSettingsInput) (*SiteSettin
 		Title:     strings.TrimSpace(input.Title),
 		Tagline:   strings.TrimSpace(input.Tagline),
 		LogoURL:   strings.TrimSpace(input.LogoURL),
+		LogoAlt:   strings.TrimSpace(input.LogoAlt),
+		Headline:  strings.TrimSpace(input.Headline),
+		HeroText:  strings.TrimSpace(input.HeroText),
+		PrimaryCta: strings.TrimSpace(input.PrimaryCta),
+		SecondaryCta: strings.TrimSpace(input.SecondaryCta),
+		AccentColor: strings.TrimSpace(input.AccentColor),
+		HighlightLabel: strings.TrimSpace(input.HighlightLabel),
 		UpdatedAt: time.Now(),
 	}
 	_, err := r.db.Exec(
-		`INSERT INTO site_settings (id, title, tagline, logo_url, updated_at)
-		 VALUES (1, $1, $2, $3, $4)
-		 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, tagline = EXCLUDED.tagline, logo_url = EXCLUDED.logo_url, updated_at = EXCLUDED.updated_at`,
+		`INSERT INTO site_settings (
+			id, title, tagline, logo_url, logo_alt, headline, hero_description,
+			primary_button, secondary_button, accent_color, highlight_label, updated_at
+		 ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		 ON CONFLICT (id) DO UPDATE SET
+			 title = EXCLUDED.title,
+			 tagline = EXCLUDED.tagline,
+			 logo_url = EXCLUDED.logo_url,
+			 logo_alt = EXCLUDED.logo_alt,
+			 headline = EXCLUDED.headline,
+			 hero_description = EXCLUDED.hero_description,
+			 primary_button = EXCLUDED.primary_button,
+			 secondary_button = EXCLUDED.secondary_button,
+			 accent_color = EXCLUDED.accent_color,
+			 highlight_label = EXCLUDED.highlight_label,
+			 updated_at = EXCLUDED.updated_at`,
 		settings.Title,
 		settings.Tagline,
 		settings.LogoURL,
+		settings.LogoAlt,
+		settings.Headline,
+		settings.HeroText,
+		settings.PrimaryCta,
+		settings.SecondaryCta,
+		settings.AccentColor,
+		settings.HighlightLabel,
 		settings.UpdatedAt,
 	)
 	if err != nil {
