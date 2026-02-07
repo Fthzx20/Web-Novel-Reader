@@ -166,6 +166,17 @@ func (s *Store) AddReadingHistory(userID int, input ReadingHistoryInput) (*Readi
 	return entry, nil
 }
 
+func (s *Store) ClearReadingHistory(userID int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, entry := range s.history {
+		if entry.UserID == userID {
+			delete(s.history, id)
+		}
+	}
+	return nil
+}
+
 func (s *Store) ListFollows(userID int) []*Follow {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

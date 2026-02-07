@@ -16,7 +16,9 @@ import {
   bookmarkNovel,
   fetchChaptersByNovel,
   fetchComments,
+  fetchBookmarks,
   fetchNovels,
+  fetchReadingHistory,
   followNovel,
   rateNovel,
   unbookmarkNovel,
@@ -39,6 +41,7 @@ export default function NovelPage() {
   const params = useParams();
   const slugParam = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const resolvedSlug = slugParam ?? "";
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [novel, setNovel] = useState<AdminNovel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const coverUrl = novel?.coverUrl ? resolveAssetUrl(novel.coverUrl) : "";
@@ -76,6 +79,11 @@ export default function NovelPage() {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
+    const session = loadSession();
+    setSessionToken(session?.token ?? null);
+  }, []);
+
+  useEffect(() => {
     if (!resolvedSlug) {
       return;
     }
@@ -93,6 +101,32 @@ export default function NovelPage() {
         setNotice(err instanceof Error ? err.message : "Failed to load novel.");
       });
   }, [resolvedSlug]);
+
+  useEffect(() => {
+    if (!sessionToken || !novel) {
+      return;
+    }
+    fetchBookmarks(sessionToken)
+      .then((data) => {
+        const isBookmarked = data.some((entry) => entry.novelId === novel.id);
+        setBookmark(isBookmarked);
+      })
+      .catch(() => null);
+  }, [sessionToken, novel]);
+
+  useEffect(() => {
+    if (!sessionToken || !novel) {
+      return;
+    }
+    fetchReadingHistory(sessionToken)
+      .then((data) => {
+        const chapterIds = data
+          .filter((entry) => entry.novelSlug === novel.slug)
+          .map((entry) => entry.chapterId);
+        setReadChapters(Array.from(new Set(chapterIds)));
+      })
+      .catch(() => null);
+  }, [sessionToken, novel]);
 
   const commentsChapterId = latestChapter?.id ?? chapters[0]?.id;
 
@@ -294,6 +328,7 @@ export default function NovelPage() {
                       await unbookmarkNovel(session.token, novel.id);
                     }
                   } catch (err) {
+                    setBookmark(!next);
                     setNotice(err instanceof Error ? err.message : "Failed to update bookmark.");
                   }
                 }}

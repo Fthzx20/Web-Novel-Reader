@@ -21,6 +21,7 @@ type Repository interface {
 	GetAuthUserByEmail(email string) (*AuthUser, error)
 	ListReadingHistory(userID int) []*ReadingHistory
 	AddReadingHistory(userID int, input ReadingHistoryInput) (*ReadingHistory, error)
+	ClearReadingHistory(userID int) error
 	ListFollows(userID int) []*Follow
 	AddFollow(userID int, novelID int) (*Follow, error)
 	RemoveFollow(userID int, novelID int) error

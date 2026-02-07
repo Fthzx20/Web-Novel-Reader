@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { fetchReadingHistory } from "@/lib/api";
+import { clearReadingHistory, fetchReadingHistory } from "@/lib/api";
 import { clearSession, loadSession, type AuthSession } from "@/lib/auth";
 import { SiteNav } from "@/components/site/site-nav";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ export default function ReadingHistoryPage() {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const loaded = loadSession();
@@ -91,6 +92,29 @@ export default function ReadingHistoryPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={loading || items.length === 0}
+              onClick={async () => {
+                if (typeof window !== "undefined") {
+                  const confirmed = window.confirm(
+                    "Clear your entire reading history? This cannot be undone."
+                  );
+                  if (!confirmed) {
+                    return;
+                  }
+                }
+                setNotice("");
+                try {
+                  await clearReadingHistory(session.token);
+                  setItems([]);
+                } catch {
+                  setNotice("Unable to clear history.");
+                }
+              }}
+            >
+              Clear history
+            </Button>
             <Button variant="outline" asChild>
               <Link href="/">Back</Link>
             </Button>
@@ -108,6 +132,7 @@ export default function ReadingHistoryPage() {
         <div className="mt-6 grid gap-4">
           {loading && <p className="text-sm text-muted-foreground">Loading history...</p>}
           {error && <p className="text-sm text-red-400">{error}</p>}
+          {notice && <p className="text-sm text-amber-200">{notice}</p>}
           {!loading && !error && items.length === 0 && (
             <Card>
               <CardContent className="py-6 text-sm text-muted-foreground">

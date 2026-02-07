@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Clock, Flame, SlidersHorizontal, Star } from "lucide-react";
 
@@ -25,7 +26,16 @@ const parseDate = (value: string) => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
+const toDateKey = (value: string) => {
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return "";
+  }
+  return new Date(parsed).toDateString();
+};
+
 export default function LibraryPage() {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [activeStatus, setActiveStatus] = useState("All");
   const [activeTag, setActiveTag] = useState("All");
@@ -42,6 +52,11 @@ export default function LibraryPage() {
         setNotice(err instanceof Error ? err.message : "Unable to load library.")
       );
   }, []);
+
+  useEffect(() => {
+    const initialQuery = searchParams.get("query") ?? "";
+    setQuery(initialQuery);
+  }, [searchParams]);
 
   const filteredNovels = useMemo(() => {
     const lowerQuery = query.toLowerCase();
@@ -75,6 +90,15 @@ export default function LibraryPage() {
       novel.tags.forEach((tag) => tagSet.add(tag));
     });
     return Array.from(tagSet);
+  }, [novels]);
+
+  const authorCount = useMemo(() => {
+    return new Set(novels.map((novel) => novel.author).filter(Boolean)).size;
+  }, [novels]);
+
+  const updatedToday = useMemo(() => {
+    const todayKey = new Date().toDateString();
+    return novels.filter((novel) => toDateKey(novel.updatedAt) === todayKey).length;
   }, [novels]);
 
   return (
@@ -165,15 +189,15 @@ export default function LibraryPage() {
               <CardContent className="space-y-3 text-sm text-muted-foreground">
                 <div className="flex items-center gap-3">
                   <Flame className="h-4 w-4 text-amber-200" />
-                  24 chapters released
+                  {updatedToday} series updated today
                 </div>
                 <div className="flex items-center gap-3">
                   <Star className="h-4 w-4 text-amber-200" />
-                  4.5 average rating
+                  {authorCount} active authors
                 </div>
                 <div className="flex items-center gap-3">
                   <Clock className="h-4 w-4 text-amber-200" />
-                  Fast refresh feed
+                  {tagOptions.length} genres tracked
                 </div>
               </CardContent>
             </Card>

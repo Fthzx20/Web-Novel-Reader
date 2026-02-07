@@ -201,6 +201,14 @@ func registerRoutes(router *gin.Engine, repo Repository, cfg Config) {
 		}
 		c.JSON(http.StatusCreated, entry)
 	})
+	me.DELETE("/history", func(c *gin.Context) {
+		userID := c.GetInt("userID")
+		if err := repo.ClearReadingHistory(userID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.Status(http.StatusNoContent)
+	})
 
 	router.GET("/settings", func(c *gin.Context) {
 		settings, err := repo.GetSiteSettings()

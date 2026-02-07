@@ -563,6 +563,14 @@ func (r *AppRepository) AddReadingHistory(userID int, input ReadingHistoryInput)
 	return entry, nil
 }
 
+func (r *AppRepository) ClearReadingHistory(userID int) error {
+	_, err := r.db.Exec(
+		"DELETE FROM reading_history WHERE user_id = $1",
+		userID,
+	)
+	return err
+}
+
 func (r *AppRepository) ListFollows(userID int) []*Follow {
 	rows, err := r.db.Query(
 		`SELECT id, user_id, novel_id, created_at

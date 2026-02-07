@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Search, Trophy, BookOpenText } from "lucide-react";
 
@@ -21,10 +22,12 @@ const parseDate = (value: string) => {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [session, setSession] = useState<AuthSession | null>(null);
   const isAdmin = session?.user.role === "admin";
   const [novels, setNovels] = useState<AdminNovel[]>([]);
   const [notice, setNotice] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [recentRead, setRecentRead] = useState<{
     novelSlug: string;
     novelTitle: string;
@@ -80,6 +83,18 @@ export default function Home() {
       .slice(0, 5);
   }, [novels]);
 
+  const authorCount = useMemo(() => {
+    return new Set(novels.map((novel) => novel.author).filter(Boolean)).size;
+  }, [novels]);
+
+  const tagCount = useMemo(() => {
+    const tags = new Set<string>();
+    novels.forEach((novel) => {
+      novel.tags.forEach((tag) => tags.add(tag));
+    });
+    return tags.size;
+  }, [novels]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteNav />
@@ -106,25 +121,37 @@ export default function Home() {
                 </Button>
               )}
             </div>
-            <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card/60 px-4 py-3">
+            <form
+              className="flex items-center gap-3 rounded-xl border border-border/50 bg-card/60 px-4 py-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const trimmed = searchQuery.trim();
+                if (!trimmed) {
+                  return;
+                }
+                router.push(`/library?query=${encodeURIComponent(trimmed)}`);
+              }}
+            >
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search title, team, or origin..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="border-none bg-transparent px-0 focus-visible:ring-0"
               />
-            </div>
+            </form>
             <div className="grid gap-4 text-sm text-muted-foreground sm:grid-cols-3">
               <div>
                 <p className="text-2xl font-semibold text-foreground">{novels.length}</p>
                 <p>Series updated</p>
               </div>
               <div>
-                <p className="text-2xl font-semibold text-foreground">42</p>
-                <p>Active teams</p>
+                <p className="text-2xl font-semibold text-foreground">{authorCount}</p>
+                <p>Active authors</p>
               </div>
               <div>
-                <p className="text-2xl font-semibold text-foreground">210k</p>
-                <p>Followers</p>
+                <p className="text-2xl font-semibold text-foreground">{tagCount}</p>
+                <p>Genres tracked</p>
               </div>
             </div>
           </div>
@@ -183,8 +210,9 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-4">
               {rankings.map((novel, index) => (
-                <div
+                <Link
                   key={novel.id}
+                  href={`/novels/${novel.slug}`}
                   className="flex items-center justify-between rounded-lg border border-border/40 px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
@@ -215,7 +243,7 @@ export default function Home() {
                     </div>
                   </div>
                   <Badge variant="outline">{novel.status}</Badge>
-                </div>
+                </Link>
               ))}
             </CardContent>
           </Card>

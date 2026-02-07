@@ -67,6 +67,13 @@ export type ReadingHistoryEntry = {
   readAt: string;
 };
 
+export type BookmarkEntry = {
+  id: number;
+  userId: number;
+  novelId: number;
+  createdAt: string;
+};
+
 export type ReleaseQueueItem = {
   id: number;
   novelId: number;
@@ -268,6 +275,17 @@ export async function fetchReadingHistory(token: string): Promise<ReadingHistory
   return (await response.json()) as ReadingHistoryEntry[];
 }
 
+export async function fetchBookmarks(token: string): Promise<BookmarkEntry[]> {
+  const response = await fetch(`${API_BASE}/me/bookmarks`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to load bookmarks");
+  }
+  return (await response.json()) as BookmarkEntry[];
+}
+
 export async function recordReadingHistory(
   token: string,
   input: {
@@ -287,6 +305,16 @@ export async function recordReadingHistory(
   });
   if (!response.ok) {
     throw new Error("Failed to record history");
+  }
+}
+
+export async function clearReadingHistory(token: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/me/history`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to clear history");
   }
 }
 
