@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Settings } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -6,8 +9,63 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchSiteSettings, updateSiteSettings, uploadLogo } from "@/lib/api";
+import { loadSession } from "@/lib/auth";
 
 export default function BloggerSettingsPage() {
+  const [title, setTitle] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [logoAlt, setLogoAlt] = useState("Malaz logo");
+  const [headline, setHeadline] = useState(
+    "Fast updates, clean reading, and zero distractions."
+  );
+  const [heroDescription, setHeroDescription] = useState(
+    "Track new chapters, follow translation teams, and read on any screen with a lightweight layout that keeps you focused."
+  );
+  const [primaryButton, setPrimaryButton] = useState("Start reading");
+  const [secondaryButton, setSecondaryButton] = useState("Browse updates");
+  const [accentColor, setAccentColor] = useState("#FBBF24");
+  const [highlightLabel, setHighlightLabel] = useState("Malaz Translation Project");
+  const [notice, setNotice] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const session = loadSession();
+    setIsAdmin(session?.user.role === "admin");
+    fetchSiteSettings()
+      .then((settings) => {
+        setTitle(settings.title || "Malaz Translation");
+        setTagline(settings.tagline || "Fast updates, clean reading.");
+        setLogoUrl(settings.logoUrl || "");
+      })
+      .catch((err) => {
+        setNotice(err instanceof Error ? err.message : "Failed to load settings.");
+      });
+  }, []);
+
+  const handleSave = async () => {
+    if (!isAdmin) {
+      setNotice("Admin access required.");
+      return;
+    }
+    if (!title.trim() || !tagline.trim()) {
+      setNotice("Title and tagline are required.");
+      return;
+    }
+    setNotice("");
+    try {
+      await updateSiteSettings({
+        title: title.trim(),
+        tagline: tagline.trim(),
+        logoUrl: logoUrl.trim(),
+      });
+      setNotice("Settings saved.");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Save failed.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="relative overflow-hidden">
@@ -20,7 +78,7 @@ export default function BloggerSettingsPage() {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                  Blogger Studio
+                  Malaz Studio
                 </p>
                 <h1 className="text-2xl font-semibold tracking-tight">
                   Website settings
@@ -39,7 +97,7 @@ export default function BloggerSettingsPage() {
             <CardHeader>
               <CardTitle>Brand and homepage</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Configure the public site experience. Changes will be saved later.
+                Configure the public site experience. Branding settings are stored now.
               </p>
             </CardHeader>
             <CardContent className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
@@ -48,19 +106,52 @@ export default function BloggerSettingsPage() {
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     Branding
                   </p>
-                  <Input placeholder="Site title" defaultValue="Malaz Translation" />
-                  <Input placeholder="Tagline" defaultValue="Fast updates, clean reading." />
-                  <Input type="file" accept="image/*" />
-                  <Input placeholder="Logo alt text" defaultValue="Malaz logo" />
+                  <Input
+                    placeholder="Site title"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Tagline"
+                    value={tagline}
+                    onChange={(event) => setTagline(event.target.value)}
+                  />
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) {
+                        return;
+                      }
+                      try {
+                        const uploaded = await uploadLogo(file);
+                        setLogoUrl(uploaded);
+                        setNotice("Logo uploaded.");
+                      } catch (err) {
+                        setNotice(err instanceof Error ? err.message : "Logo upload failed.");
+                      }
+                    }}
+                  />
+                  <Input
+                    placeholder="Logo alt text"
+                    value={logoAlt}
+                    onChange={(event) => setLogoAlt(event.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     Homepage hero
                   </p>
-                  <Input placeholder="Headline" defaultValue="Fast updates, clean reading, and zero distractions." />
+                  <Input
+                    placeholder="Headline"
+                    value={headline}
+                    onChange={(event) => setHeadline(event.target.value)}
+                  />
                   <Textarea
                     placeholder="Hero description"
-                    defaultValue="Track new chapters, follow translation teams, and read on any screen with a lightweight layout that keeps you focused."
+                    value={heroDescription}
+                    onChange={(event) => setHeroDescription(event.target.value)}
                   />
                 </div>
               </div>
@@ -69,15 +160,31 @@ export default function BloggerSettingsPage() {
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     Navigation
                   </p>
-                  <Input placeholder="Primary button" defaultValue="Start reading" />
-                  <Input placeholder="Secondary button" defaultValue="Browse updates" />
+                  <Input
+                    placeholder="Primary button"
+                    value={primaryButton}
+                    onChange={(event) => setPrimaryButton(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Secondary button"
+                    value={secondaryButton}
+                    onChange={(event) => setSecondaryButton(event.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     Visual style
                   </p>
-                  <Input placeholder="Accent color" defaultValue="#FBBF24" />
-                  <Input placeholder="Highlight label" defaultValue="Malaz Translation Project" />
+                  <Input
+                    placeholder="Accent color"
+                    value={accentColor}
+                    onChange={(event) => setAccentColor(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Highlight label"
+                    value={highlightLabel}
+                    onChange={(event) => setHighlightLabel(event.target.value)}
+                  />
                   <div className="flex flex-wrap gap-2">
                     {["Amber", "Sky", "Emerald", "Slate"].map((tone) => (
                       <Badge key={tone} variant="subtle">
@@ -86,8 +193,12 @@ export default function BloggerSettingsPage() {
                     ))}
                   </div>
                 </div>
+                {notice && <p className="text-sm text-amber-200">{notice}</p>}
                 <div className="flex flex-col gap-2 pt-2 sm:flex-row">
-                  <Button className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90 sm:w-auto">
+                  <Button
+                    className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90 sm:w-auto"
+                    onClick={handleSave}
+                  >
                     Save settings
                   </Button>
                   <Button variant="outline" className="sm:w-auto">

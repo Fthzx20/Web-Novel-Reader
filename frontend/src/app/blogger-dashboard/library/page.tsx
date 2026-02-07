@@ -2,12 +2,35 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, FileText, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, FileText, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchNovelsAdmin, deleteNovelAdmin, type AdminNovel } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/plate/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/plate/components/ui/dropdown-menu";
+import {
+  createNovelAdmin,
+  deleteNovelAdmin,
+  fetchNovelsAdmin,
+  uploadNovelCover,
+  type AdminNovel,
+} from "@/lib/api";
 import { loadSession } from "@/lib/auth";
 import { resolveAssetUrl } from "@/lib/utils";
 
@@ -15,16 +38,78 @@ export default function BloggerLibraryPage() {
   const [novels, setNovels] = useState<AdminNovel[]>([]);
   const [notice, setNotice] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [newPostOpen, setNewPostOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newAuthor, setNewAuthor] = useState("");
+  const [newLanguage, setNewLanguage] = useState("");
+  const [newTags, setNewTags] = useState("");
+  const [newSummary, setNewSummary] = useState("");
+  const [newCoverFile, setNewCoverFile] = useState<File | null>(null);
+  const [newStatus, setNewStatus] = useState("Ongoing");
+  const [newPostNotice, setNewPostNotice] = useState("");
+  const statusOptions = ["Hiatus", "Completed", "Ongoing", "Axed", "Dropped"];
+
+  const loadNovels = async () => {
+    try {
+      const data = await fetchNovelsAdmin();
+      setNovels(data);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Failed to load library.");
+    }
+  };
 
   useEffect(() => {
     const session = loadSession();
     setIsAdmin(session?.user.role === "admin");
-    fetchNovelsAdmin()
-      .then((data) => setNovels(data))
-      .catch((err) => {
-        setNotice(err instanceof Error ? err.message : "Failed to load library.");
-      });
+    void loadNovels();
   }, []);
+
+  const handleCreateNovel = async () => {
+    if (!isAdmin) {
+      setNewPostNotice("Admin access required.");
+      return;
+    }
+    const trimmedTitle = newTitle.trim();
+    const trimmedAuthor = newAuthor.trim();
+    const trimmedSummary = newSummary.trim();
+    if (!trimmedTitle || !trimmedAuthor || !trimmedSummary) {
+      setNewPostNotice("Title, author, and synopsis are required.");
+      return;
+    }
+    setNewPostNotice("");
+    try {
+      let coverUrl = "";
+      if (newCoverFile) {
+        coverUrl = await uploadNovelCover(newCoverFile);
+      }
+      const tagList = newTags
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (newLanguage.trim()) {
+        tagList.push(`Language: ${newLanguage.trim()}`);
+      }
+      await createNovelAdmin({
+        title: trimmedTitle,
+        author: trimmedAuthor,
+        summary: trimmedSummary,
+        tags: tagList,
+        status: newStatus,
+        coverUrl: coverUrl || undefined,
+      });
+      setNewTitle("");
+      setNewAuthor("");
+      setNewLanguage("");
+      setNewTags("");
+      setNewSummary("");
+      setNewCoverFile(null);
+      setNewStatus("Ongoing");
+      setNewPostOpen(false);
+      await loadNovels();
+    } catch (err) {
+      setNewPostNotice(err instanceof Error ? err.message : "Failed to create novel.");
+    }
+  };
 
   const sortedNovels = useMemo(() => {
     return [...novels].sort((a, b) => {
@@ -56,11 +141,12 @@ export default function BloggerLibraryPage() {
                   Back to dashboard
                 </Link>
               </Button>
-              <Button className="gap-2 bg-amber-200 text-zinc-950 hover:bg-amber-200/90" asChild>
-                <Link href="/admin/novels/new">
-                  <FileText className="h-4 w-4" />
-                  New novel
-                </Link>
+              <Button
+                className="gap-2 bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
+                onClick={() => setNewPostOpen(true)}
+              >
+                <FileText className="h-4 w-4" />
+                New novel
               </Button>
             </div>
           </header>
@@ -145,6 +231,90 @@ export default function BloggerLibraryPage() {
           </div>
         </div>
       </div>
+      <Dialog open={newPostOpen} onOpenChange={setNewPostOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create new novel</DialogTitle>
+            <DialogDescription>
+              Draft a new series entry. It will appear in the library for chapter writing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              placeholder="Novel title"
+              value={newTitle}
+              onChange={(event) => setNewTitle(event.target.value)}
+            />
+            <Input
+              placeholder="Author"
+              value={newAuthor}
+              onChange={(event) => setNewAuthor(event.target.value)}
+            />
+            <Input
+              placeholder="Language"
+              value={newLanguage}
+              onChange={(event) => setNewLanguage(event.target.value)}
+            />
+            <Input
+              placeholder="Tags (comma separated)"
+              value={newTags}
+              onChange={(event) => setNewTags(event.target.value)}
+            />
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                setNewCoverFile(file);
+              }}
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  Status: {newStatus}
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[180px]">
+                <DropdownMenuRadioGroup
+                  value={newStatus}
+                  onValueChange={(value) => setNewStatus(value)}
+                >
+                  {statusOptions.map((option) => (
+                    <DropdownMenuRadioItem key={option} value={option}>
+                      {option}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <Textarea
+            placeholder="Synopsis"
+            value={newSummary}
+            onChange={(event) => setNewSummary(event.target.value)}
+            rows={4}
+          />
+          <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+            <span>Author: {newAuthor || "-"}</span>
+            <span>Language: {newLanguage || "-"}</span>
+            <span>Tags: {newTags || "-"}</span>
+          </div>
+          {newPostNotice && <p className="text-sm text-amber-200">{newPostNotice}</p>}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setNewPostOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="gap-2 bg-amber-200 text-zinc-950 hover:bg-amber-200/90"
+              onClick={handleCreateNovel}
+            >
+              <Plus className="h-4 w-4" />
+              Create novel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function SiteNav() {
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/50 bg-card/80">
-            {resolvedLogoUrl ? <Image src={resolvedLogoUrl} alt="Site logo" width={24} height={24} className="h-6 w-6 object-contain" unoptimized /> : <BookOpenText className="h-5 w-5 text-amber-200" />}
+            {resolvedLogoUrl ? <Image src={resolvedLogoUrl} alt="Site logo" width={24} height={24} className="h-6 w-6 rounded-md object-cover" unoptimized /> : <BookOpenText className="h-5 w-5 text-amber-200" />}
           </span>
           <span className="tracking-tight">{siteTitle}</span>
         </Link>
