@@ -20,6 +20,9 @@ type Config struct {
 	ModerationPassword string
 	CorsOrigins        []string
 	TrustedProxies     []string
+	ServerReadTimeout  time.Duration
+	ServerWriteTimeout time.Duration
+	ServerIdleTimeout  time.Duration
 }
 
 func LoadConfig() Config {
@@ -37,6 +40,9 @@ func LoadConfig() Config {
 		ModerationPassword: os.Getenv("MODERATION_PASSWORD"),
 		CorsOrigins:        getEnvList("CORS_ORIGINS"),
 		TrustedProxies:     getEnvList("TRUSTED_PROXIES"),
+		ServerReadTimeout:  getEnvDuration("SERVER_READ_TIMEOUT", "15s"),
+		ServerWriteTimeout: getEnvDuration("SERVER_WRITE_TIMEOUT", "15s"),
+		ServerIdleTimeout:  getEnvDuration("SERVER_IDLE_TIMEOUT", "60s"),
 	}
 }
 
