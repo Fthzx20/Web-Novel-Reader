@@ -18,6 +18,8 @@ type Config struct {
 	JWTTTL             time.Duration
 	AdminEmails        []string
 	ModerationPassword string
+	CorsOrigins        []string
+	TrustedProxies     []string
 }
 
 func LoadConfig() Config {
@@ -33,6 +35,8 @@ func LoadConfig() Config {
 		JWTTTL:             getEnvDuration("JWT_TTL", "24h"),
 		AdminEmails:        getEnvList("ADMIN_EMAILS"),
 		ModerationPassword: os.Getenv("MODERATION_PASSWORD"),
+		CorsOrigins:        getEnvList("CORS_ORIGINS"),
+		TrustedProxies:     getEnvList("TRUSTED_PROXIES"),
 	}
 }
 

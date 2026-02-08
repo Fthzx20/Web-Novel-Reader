@@ -21,9 +21,19 @@ func main() {
 	repo := NewAppRepository(store, db)
 	router := gin.Default()
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowAllOrigins = true
+	if len(cfg.CorsOrigins) > 0 {
+		corsConfig.AllowAllOrigins = false
+		corsConfig.AllowOrigins = cfg.CorsOrigins
+	} else {
+		corsConfig.AllowAllOrigins = true
+	}
 	corsConfig.AllowHeaders = append(corsConfig.AllowHeaders, "Authorization", "X-API-Key", "X-Moderation-Password")
 	router.Use(cors.New(corsConfig))
+	if len(cfg.TrustedProxies) > 0 {
+		if err := router.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+			log.Fatal(err)
+		}
+	}
 	router.Static("/uploads", "./uploads")
 	registerRoutes(router, repo, cfg)
 
