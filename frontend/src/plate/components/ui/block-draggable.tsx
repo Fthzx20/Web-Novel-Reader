@@ -73,8 +73,6 @@ export const BlockDraggable: RenderNodeWrapper = (props) => {
   return BlockDraggableContent;
 };
 
-BlockDraggable.displayName = 'BlockDraggable';
-
 function Draggable(props: PlateElementProps) {
   const { children, editor, element, path } = props;
   const blockSelectionApi = editor.getApi(BlockSelectionPlugin).blockSelection;

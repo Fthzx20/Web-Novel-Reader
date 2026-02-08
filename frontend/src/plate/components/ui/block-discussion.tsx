@@ -52,12 +52,19 @@ export const BlockDiscussion: RenderNodeWrapper<AnyPluginConfig> = (props) => {
   // avoid duplicate in table or column
   if (!blockPath || blockPath.length > 1) return;
 
-  const draftCommentNode = commentsApi.node({ at: blockPath, isDraft: true });
+  const resolvedBlockPath = blockPath;
 
-  const commentNodes = [...commentsApi.nodes({ at: blockPath })];
+  const draftCommentNode = commentsApi.node({
+    at: resolvedBlockPath,
+    isDraft: true,
+  });
+
+  const commentNodes = [...commentsApi.nodes({ at: resolvedBlockPath })];
 
   const suggestionNodes = [
-    ...editor.getApi(SuggestionPlugin).suggestion.nodes({ at: blockPath }),
+    ...editor.getApi(SuggestionPlugin).suggestion.nodes({
+      at: resolvedBlockPath,
+    }),
   ].filter(([node]) => !node[getTransientSuggestionKey()]);
 
   if (
@@ -71,7 +78,7 @@ export const BlockDiscussion: RenderNodeWrapper<AnyPluginConfig> = (props) => {
   function BlockDiscussionContent(props: PlateElementProps) {
     return (
       <BlockCommentContent
-        blockPath={blockPath}
+        blockPath={resolvedBlockPath}
         commentNodes={commentNodes}
         draftCommentNode={draftCommentNode}
         suggestionNodes={suggestionNodes}
@@ -82,8 +89,6 @@ export const BlockDiscussion: RenderNodeWrapper<AnyPluginConfig> = (props) => {
 
   return BlockDiscussionContent;
 };
-
-BlockDiscussion.displayName = 'BlockDiscussion';
 
 const BlockCommentContent = ({
   blockPath,

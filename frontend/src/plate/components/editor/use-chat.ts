@@ -188,7 +188,8 @@ export const useChat = () => {
   };
 
   React.useEffect(() => {
-    editor.setOption(AIChatPlugin, 'chat', chat as Chat);
+    // Work around type mismatches between AI and Plate plugin typings.
+    (editor as any).setOption(AIChatPlugin, 'chat', chat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.status, chat.messages, chat.error]);
 

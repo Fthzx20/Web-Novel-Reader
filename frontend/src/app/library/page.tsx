@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Clock, Flame, SlidersHorizontal, Star } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/site-footer";
@@ -35,7 +35,7 @@ const toDateKey = (value: string) => {
   return new Date(parsed).toDateString();
 };
 
-export default function LibraryPage() {
+function LibraryContent() {
   const searchParams = useSearchParams();
   const session = useAuthSession();
   const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
@@ -308,5 +308,15 @@ export default function LibraryPage() {
       </main>
       <SiteFooter />
     </div>
+  );
+}
+
+export default function LibraryPage() {
+  return (
+    <Suspense
+      fallback={<div className="min-h-screen bg-background text-foreground" />}
+    >
+      <LibraryContent />
+    </Suspense>
   );
 }

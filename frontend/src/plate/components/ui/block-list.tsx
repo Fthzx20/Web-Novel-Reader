@@ -39,8 +39,6 @@ export const BlockList: RenderNodeWrapper = (props) => {
   return BlockListContent;
 };
 
-BlockList.displayName = 'BlockList';
-
 function List(props: PlateElementProps) {
   const { listStart, listStyleType } = props.element as TListElement;
   const { Li, Marker } = config[listStyleType] ?? {};

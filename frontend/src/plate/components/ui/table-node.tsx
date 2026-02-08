@@ -545,6 +545,11 @@ export function TableCellElement({
       rowIndex,
     });
 
+  const colVariantIndex = Math.min(
+    Math.max(colIndex ?? 0, 0),
+    10
+  ) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+
   return (
     <PlateElement
       {...props}
@@ -607,7 +612,7 @@ export function TableCellElement({
                 className={cn(
                   'absolute top-0 z-30 hidden h-full w-1 bg-ring',
                   'right-[-1.5px]',
-                  columnResizeVariants({ colIndex: colIndex ?? 0 })
+                  columnResizeVariants({ colIndex: colVariantIndex })
                 )}
               />
               {colIndex === 0 && (

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 import { loginUser } from "@/lib/api";
 import { saveSession } from "@/lib/auth";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -91,5 +91,15 @@ export default function SignInPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense
+      fallback={<div className="min-h-screen bg-background text-foreground" />}
+    >
+      <SignInContent />
+    </Suspense>
   );
 }

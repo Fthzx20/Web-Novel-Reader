@@ -252,7 +252,7 @@ function EmojiPickerContent({
   const getRowWidth = settings.perLine.value * settings.buttonSize.value;
 
   const isCategoryVisible = React.useCallback(
-    (categoryId: string) =>
+    (categoryId: EmojiCategoryList) =>
       visibleCategories.has(categoryId)
         ? visibleCategories.get(categoryId)
         : false,
@@ -264,7 +264,7 @@ function EmojiPickerContent({
       emojiLibrary
         .getGrid()
         .sections()
-        .map(({ id: categoryId }) => {
+        .map(({ id: categoryId }: { id: EmojiCategoryList }) => {
           const section = emojiLibrary.getGrid().section(categoryId);
           const { buttonSize } = settings;
 

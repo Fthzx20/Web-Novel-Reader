@@ -2,32 +2,35 @@
 
 import { AIChatPlugin } from '@platejs/ai/react';
 import { BlockSelectionPlugin } from '@platejs/selection/react';
-import { getPluginTypes, isHotkey, KEYS } from 'platejs';
-import type { PlateElementProps } from 'platejs/react';
-
+import {
+  getPluginTypes,
+  isHotkey,
+  KEYS,
+  type SlateEditor,
+  type TElement,
+} from 'platejs';
 import { BlockSelection } from '@/plate/components/ui/block-selection';
 
+const BlockSelectionPluginAny = BlockSelectionPlugin as unknown as {
+  configure: (fn: (ctx: any) => any) => any;
+};
+
 export const BlockSelectionKit = [
-  BlockSelectionPlugin.configure(({ editor }) => ({
+  BlockSelectionPluginAny.configure(({ editor }: any) => ({
     options: {
       enableContextMenu: true,
-      isSelectable: (element) =>
+      isSelectable: (element: TElement) =>
         !getPluginTypes(editor, [KEYS.column, KEYS.codeLine, KEYS.td]).includes(
           element.type
         ),
-      onKeyDownSelecting: (editor, e) => {
+      onKeyDownSelecting: (editor: SlateEditor, e: KeyboardEvent) => {
         if (isHotkey('mod+j')(e)) {
           editor.getApi(AIChatPlugin).aiChat.show();
         }
       },
     },
     render: {
-      belowRootNodes: (props: PlateElementProps) => {
-        if (!props.attributes.className?.includes('slate-selectable'))
-          return null;
-
-        return <BlockSelection {...props} />;
-      },
+      belowRootNodes: BlockSelection as any,
     },
   })),
 ];
