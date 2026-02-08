@@ -133,9 +133,14 @@ async function getErrorMessage(response: Response, fallback: string) {
 
 function adminHeaders() {
   const session = typeof window !== "undefined" ? loadSession() : null;
-  const bearer = session?.user.role === "admin" ? { Authorization: `Bearer ${session.token}` } : {};
-  const key = ADMIN_API_KEY ? { "X-API-Key": ADMIN_API_KEY } : {};
-  return { ...key, ...bearer };
+  const headers: Record<string, string> = {};
+  if (session?.user.role === "admin") {
+    headers.Authorization = `Bearer ${session.token}`;
+  }
+  if (ADMIN_API_KEY) {
+    headers["X-API-Key"] = ADMIN_API_KEY;
+  }
+  return headers;
 }
 
 function moderationHeaders() {
@@ -143,8 +148,11 @@ function moderationHeaders() {
     return adminHeaders();
   }
   const password = window.sessionStorage.getItem("moderationPassword") ?? "";
-  const moderation = password ? { "X-Moderation-Password": password } : {};
-  return { ...adminHeaders(), ...moderation };
+  const headers = adminHeaders();
+  if (password) {
+    headers["X-Moderation-Password"] = password;
+  }
+  return headers;
 }
 
 export async function fetchNovels(): Promise<AdminNovel[]> {
