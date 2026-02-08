@@ -17,9 +17,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	if err := RunMigrations(db); err != nil {
-		log.Fatal(err)
-	}
+	//if err := RunMigrations(db); err != nil {
+	//	log.Fatal(err)
+	//}
 	repo := NewAppRepository(store, db)
 	router := gin.Default()
 	corsConfig := cors.DefaultConfig()
