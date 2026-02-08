@@ -4,10 +4,11 @@ import { normalizeNodeId } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
 
 import { EditorKit } from "@/plate/components/editor/editor-kit";
+import type { MyValue } from "@/plate/components/editor/plate-types";
 import { SettingsDialog } from "@/plate/components/editor/settings-dialog";
 import { Editor, EditorContainer, type EditorProps } from "@/plate/components/ui/editor";
 
-export type PlateValue = unknown[];
+export type PlateValue = MyValue;
 
 export type PlateEditorProps = {
   value?: PlateValue;
@@ -21,7 +22,7 @@ const defaultValue = normalizeNodeId([
     type: "p",
     children: [{ text: "" }],
   },
-]);
+]) as PlateValue;
 
 export function PlateEditor({
   value = defaultValue,
@@ -31,7 +32,7 @@ export function PlateEditor({
 }: PlateEditorProps) {
   const editor = usePlateEditor({
     plugins: EditorKit,
-    value,
+    value: value as PlateValue,
   });
 
   return (
