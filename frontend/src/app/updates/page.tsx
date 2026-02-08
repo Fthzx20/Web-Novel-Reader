@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Clock, Flame, Link as LinkIcon, MessageSquare, Users } from "lucide-react";
+import { Clock, Link as LinkIcon, MessageSquare, Users } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteNav } from "@/components/site/site-nav";
@@ -24,6 +24,8 @@ type Announcement = {
   body: string;
   createdAt: string;
 };
+
+const RECENT_CUTOFF = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
 export default function UpdatesPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -60,8 +62,7 @@ export default function UpdatesPage() {
     if (!users.length) {
       return 0;
     }
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const recent = users.filter((user) => Date.parse(user.createdAt) >= cutoff).length;
+    const recent = users.filter((user) => Date.parse(user.createdAt) >= RECENT_CUTOFF).length;
     return Math.round((recent / users.length) * 100);
   }, [users]);
 

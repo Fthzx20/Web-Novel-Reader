@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -9,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchChaptersByNovel, fetchNovels, recordReadingHistory, type AdminNovel, type Chapter } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { coerceContentToText } from "@/lib/plate-content";
 import { resolveAssetUrl } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ export default function ReaderPage() {
   const [novel, setNovel] = useState<AdminNovel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [notice, setNotice] = useState("");
+  const session = useAuthSession();
 
   useEffect(() => {
     if (!resolvedSlug) {
@@ -64,7 +66,7 @@ export default function ReaderPage() {
 
   const normalizedContent = useMemo(() => {
     return rawChapter?.content ? coerceContentToText(rawChapter.content) : "";
-  }, [rawChapter?.content]);
+  }, [rawChapter]);
 
   const chapterContent = useMemo(() => {
     if (!normalizedContent) {
@@ -74,23 +76,28 @@ export default function ReaderPage() {
     return parts.length ? parts : ["This chapter is empty."];
   }, [normalizedContent]);
 
-  const chapter = rawChapter
-    ? {
-        id: rawChapter.id,
-        number: rawChapter.number,
-        volume: rawChapter.volume ?? 1,
-        title: rawChapter.title,
-        content: chapterContent,
-      }
-    : {
-        id: 0,
-        number: 0,
-        volume: 1,
-        title: "Chapter unavailable",
-        content: [
-          notice || "This chapter is not available yet. Try another chapter from the list.",
-        ],
-      };
+  const chapter = useMemo(
+    () =>
+      rawChapter
+        ? {
+            id: rawChapter.id,
+            number: rawChapter.number,
+            volume: rawChapter.volume ?? 1,
+            title: rawChapter.title,
+            content: chapterContent,
+          }
+        : {
+            id: 0,
+            number: 0,
+            volume: 1,
+            title: "Chapter unavailable",
+            content: [
+              notice ||
+                "This chapter is not available yet. Try another chapter from the list.",
+            ],
+          },
+    [chapterContent, notice, rawChapter]
+  );
 
   const chapterWords = useMemo(() => {
     return normalizedContent ? normalizedContent.trim().split(/\s+/).length : 0;
@@ -104,31 +111,32 @@ export default function ReaderPage() {
     ? new Date(rawChapter.createdAt).toLocaleDateString()
     : "";
 
-  const [fontScale, setFontScale] = useState(1);
-  const [width, setWidth] = useState<ReaderPrefs["width"]>("comfy");
-  const [theme, setTheme] = useState<ReaderPrefs["theme"]>("night");
-  const [showSettings, setShowSettings] = useState(false);
-  const [copyStatus, setCopyStatus] = useState("");
-
   const prefsKey = `reader:${resolvedSlug}:prefs`;
-
-  useEffect(() => {
+  const storedPrefs = useMemo(() => {
     if (typeof window === "undefined") {
-      return;
+      return null;
     }
     const stored = window.localStorage.getItem(prefsKey);
     if (!stored) {
-      return;
+      return null;
     }
     try {
-      const parsed = JSON.parse(stored) as ReaderPrefs;
-      setFontScale(parsed.fontScale ?? 1);
-      setWidth(parsed.width ?? "comfy");
-      setTheme(parsed.theme ?? "night");
+      return JSON.parse(stored) as ReaderPrefs;
     } catch {
       window.localStorage.removeItem(prefsKey);
+      return null;
     }
   }, [prefsKey]);
+
+  const [fontScale, setFontScale] = useState(() => storedPrefs?.fontScale ?? 1);
+  const [width, setWidth] = useState<ReaderPrefs["width"]>(
+    () => storedPrefs?.width ?? "comfy"
+  );
+  const [theme, setTheme] = useState<ReaderPrefs["theme"]>(
+    () => storedPrefs?.theme ?? "night"
+  );
+  const [showSettings, setShowSettings] = useState(false);
+  const [copyStatus, setCopyStatus] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -146,7 +154,6 @@ export default function ReaderPage() {
     if (typeof window === "undefined") {
       return;
     }
-    const session = loadSession();
     if (!session || !chapter.id || !novel) {
       return;
     }
@@ -156,7 +163,7 @@ export default function ReaderPage() {
       chapterId: chapter.id,
       chapterTitle: `Volume ${chapter.volume} · Chapter ${chapter.number}: ${chapter.title}`,
     }).catch(() => null);
-  }, [chapter.id, chapter.number, chapter.title, novel?.slug, novel?.title]);
+  }, [chapter.id, chapter.number, chapter.title, chapter.volume, novel, session]);
 
   const widthClass =
     width === "narrow"
@@ -210,11 +217,15 @@ export default function ReaderPage() {
           }
           const url = resolveAssetUrl(match[1]);
           return (
-            <img
+            <Image
               key={partIndex}
               src={url}
               alt="Illustration"
-              className="mx-auto my-6 block w-full max-w-3xl rounded-lg border border-border/40"
+              width={1200}
+              height={800}
+              className="mx-auto my-6 block h-auto w-full max-w-3xl rounded-lg border border-border/40"
+              sizes="(max-width: 768px) 100vw, 768px"
+              unoptimized
             />
           );
         })}

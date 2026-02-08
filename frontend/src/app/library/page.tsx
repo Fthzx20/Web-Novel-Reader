@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -13,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { fetchNovels, followNovel, unfollowNovel, type AdminNovel } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { resolveAssetUrl } from "@/lib/utils";
 
 const sortOptions = [
@@ -36,7 +37,8 @@ const toDateKey = (value: string) => {
 
 export default function LibraryPage() {
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
+  const session = useAuthSession();
+  const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [activeStatus, setActiveStatus] = useState("All");
   const [activeTag, setActiveTag] = useState("All");
   const [sortBy, setSortBy] = useState("latest");
@@ -52,11 +54,6 @@ export default function LibraryPage() {
         setNotice(err instanceof Error ? err.message : "Unable to load library.")
       );
   }, []);
-
-  useEffect(() => {
-    const initialQuery = searchParams.get("query") ?? "";
-    setQuery(initialQuery);
-  }, [searchParams]);
 
   const filteredNovels = useMemo(() => {
     const lowerQuery = query.toLowerCase();
@@ -231,10 +228,13 @@ export default function LibraryPage() {
                       aria-hidden
                     >
                       {novel.coverUrl ? (
-                        <img
+                        <Image
                           src={coverUrl}
                           alt={novel.title}
+                          width={80}
+                          height={112}
                           className="h-full w-full rounded-xl object-cover"
+                          unoptimized
                         />
                       ) : (
                         <span className="text-lg font-semibold">
@@ -274,7 +274,6 @@ export default function LibraryPage() {
                         size="sm"
                         className="flex-1"
                         onClick={async () => {
-                          const session = loadSession();
                           if (!session) {
                             setNotice("Login to follow series.");
                             return;

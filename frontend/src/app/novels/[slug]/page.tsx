@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -26,7 +27,7 @@ import {
   type AdminNovel,
   type Chapter,
 } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { resolveAssetUrl } from "@/lib/utils";
 
 type StoredState = {
@@ -41,12 +42,13 @@ export default function NovelPage() {
   const params = useParams();
   const slugParam = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const resolvedSlug = slugParam ?? "";
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const session = useAuthSession();
+  const sessionToken = session?.token ?? null;
   const [novel, setNovel] = useState<AdminNovel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const coverUrl = novel?.coverUrl ? resolveAssetUrl(novel.coverUrl) : "";
   const latestChapter = chapters[chapters.length - 1];
-  const storageKey = novel ? `novel:${novel.slug}:state` : "";
+  const storageKey = resolvedSlug ? `novel:${resolvedSlug}:state` : "";
 
   const storedState = useMemo(() => {
     if (typeof window === "undefined" || !storageKey) {
@@ -64,31 +66,19 @@ export default function NovelPage() {
     }
   }, [storageKey]);
 
-  const [follow, setFollow] = useState(false);
-  const [bookmark, setBookmark] = useState(false);
-  const [rating, setRating] = useState<number | null>(null);
-  const [comments, setComments] = useState<StoredState["comments"]>([]);
+  const [follow, setFollow] = useState(() => storedState?.follow ?? false);
+  const [bookmark, setBookmark] = useState(() => storedState?.bookmark ?? false);
+  const [rating, setRating] = useState<number | null>(() => storedState?.rating ?? null);
+  const [comments, setComments] = useState<StoredState["comments"]>(
+    () => storedState?.comments ?? []
+  );
   const [commentText, setCommentText] = useState("");
-  const [readChapters, setReadChapters] = useState<number[]>([]);
+  const [readChapters, setReadChapters] = useState<number[]>(
+    () => storedState?.readChapters ?? []
+  );
   const [shareStatus, setShareStatus] = useState("");
   const [volumeFilter, setVolumeFilter] = useState<number | "All">("All");
   const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    const session = loadSession();
-    setSessionToken(session?.token ?? null);
-  }, []);
-
-  useEffect(() => {
-    if (!storedState || !storageKey) {
-      return;
-    }
-    setFollow(storedState.follow ?? false);
-    setBookmark(storedState.bookmark ?? false);
-    setRating(storedState.rating ?? null);
-    setComments(storedState.comments ?? []);
-    setReadChapters(storedState.readChapters ?? []);
-  }, [storedState, storageKey]);
 
   useEffect(() => {
     if (!resolvedSlug) {
@@ -264,10 +254,13 @@ export default function NovelPage() {
                 className="flex h-80 w-56 items-center justify-center rounded-2xl border border-border/50 bg-card/60 text-3xl font-semibold sm:h-96 sm:w-64"
               >
                 {coverUrl ? (
-                  <img
+                  <Image
                     src={coverUrl}
                     alt={novel.title}
+                    width={256}
+                    height={384}
                     className="h-full w-full rounded-2xl object-cover"
+                    unoptimized
                   />
                 ) : (
                   novel.title.charAt(0)
@@ -308,7 +301,6 @@ export default function NovelPage() {
               <Button
                 variant={follow ? "secondary" : "outline"}
                 onClick={async () => {
-                  const session = loadSession();
                   if (!session) {
                     setNotice("Login to follow series.");
                     return;
@@ -332,7 +324,6 @@ export default function NovelPage() {
                 variant="outline"
                 className="gap-2"
                 onClick={async () => {
-                  const session = loadSession();
                   if (!session) {
                     setNotice("Login to bookmark series.");
                     return;
@@ -467,7 +458,6 @@ export default function NovelPage() {
                       variant={rating === index + 1 ? "secondary" : "outline"}
                       size="icon"
                       onClick={async () => {
-                        const session = loadSession();
                         if (!session) {
                           setNotice("Login to rate this series.");
                           return;
@@ -522,7 +512,6 @@ export default function NovelPage() {
                     if (!commentText.trim() || !commentsChapterId) {
                       return;
                     }
-                    const session = loadSession();
                     if (!session) {
                       setNotice("Login to comment.");
                       return;

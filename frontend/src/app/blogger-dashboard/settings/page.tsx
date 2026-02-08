@@ -14,7 +14,7 @@ import {
   updateSiteSettings,
   uploadLogo,
 } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 
 export default function BloggerSettingsPage() {
   const [title, setTitle] = useState("");
@@ -44,11 +44,13 @@ export default function BloggerSettingsPage() {
   const [footerLink5Label, setFooterLink5Label] = useState("");
   const [footerLink5Url, setFooterLink5Url] = useState("");
   const [notice, setNotice] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const session = useAuthSession();
+  const isAdmin = session?.user.role === "admin";
 
   useEffect(() => {
-    const session = loadSession();
-    setIsAdmin(session?.user.role === "admin");
+    if (session === undefined) {
+      return;
+    }
     fetchSiteSettings()
       .then((settings) => {
         setTitle(settings.title || "Malaz Translation");
@@ -80,7 +82,7 @@ export default function BloggerSettingsPage() {
       .catch((err) => {
         setNotice(err instanceof Error ? err.message : "Failed to load settings.");
       });
-  }, []);
+  }, [session]);
 
   const handleSave = async () => {
     if (!isAdmin) {

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { fetchNovels, fetchReadingHistory, fetchSiteSettings, type AdminNovel, type SiteSettings } from "@/lib/api";
-import { loadSession, type AuthSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { resolveAssetUrl } from "@/lib/utils";
 
 const parseDate = (value: string) => {
@@ -23,7 +23,7 @@ const parseDate = (value: string) => {
 
 export default function Home() {
   const router = useRouter();
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const session = useAuthSession();
   const isAdmin = session?.user.role === "admin";
   const [novels, setNovels] = useState<AdminNovel[]>([]);
   const [notice, setNotice] = useState("");
@@ -34,10 +34,6 @@ export default function Home() {
     chapterTitle: string;
   } | null>(null);
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
-
-  useEffect(() => {
-    setSession(loadSession());
-  }, []);
 
   useEffect(() => {
     fetchNovels()

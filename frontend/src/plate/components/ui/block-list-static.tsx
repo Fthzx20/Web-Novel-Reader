@@ -22,8 +22,14 @@ const config: Record<
 export const BlockListStatic: RenderStaticNodeWrapper = (props) => {
   if (!props.element.listStyleType) return;
 
-  return (props) => <List {...props} />;
+  function BlockListStaticContent(props: SlateRenderElementProps) {
+    return <List {...props} />;
+  }
+
+  return BlockListStaticContent;
 };
+
+BlockListStatic.displayName = 'BlockListStatic';
 
 function List(props: SlateRenderElementProps) {
   const { listStart, listStyleType } = props.element as TListElement;

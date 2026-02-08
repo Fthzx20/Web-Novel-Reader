@@ -88,28 +88,28 @@ type NovelActionInput struct {
 }
 
 type SiteSettingsInput struct {
-	Title   string `json:"title"`
-	Tagline string `json:"tagline"`
-	LogoURL string `json:"logoUrl"`
-	LogoAlt string `json:"logoAlt"`
-	Headline string `json:"headline"`
-	HeroText string `json:"heroDescription"`
-	PrimaryCta string `json:"primaryButton"`
-	SecondaryCta string `json:"secondaryButton"`
-	AccentColor string `json:"accentColor"`
-	HighlightLabel string `json:"highlightLabel"`
-	FacebookUrl string `json:"facebookUrl"`
-	DiscordUrl string `json:"discordUrl"`
+	Title              string `json:"title"`
+	Tagline            string `json:"tagline"`
+	LogoURL            string `json:"logoUrl"`
+	LogoAlt            string `json:"logoAlt"`
+	Headline           string `json:"headline"`
+	HeroText           string `json:"heroDescription"`
+	PrimaryCta         string `json:"primaryButton"`
+	SecondaryCta       string `json:"secondaryButton"`
+	AccentColor        string `json:"accentColor"`
+	HighlightLabel     string `json:"highlightLabel"`
+	FacebookUrl        string `json:"facebookUrl"`
+	DiscordUrl         string `json:"discordUrl"`
 	FooterUpdatesLabel string `json:"footerUpdatesLabel"`
-	FooterUpdatesUrl string `json:"footerUpdatesUrl"`
-	FooterSeriesLabel string `json:"footerSeriesLabel"`
-	FooterSeriesUrl string `json:"footerSeriesUrl"`
-	FooterAdminLabel string `json:"footerAdminLabel"`
-	FooterAdminUrl string `json:"footerAdminUrl"`
-	FooterLink4Label string `json:"footerLink4Label"`
-	FooterLink4Url string `json:"footerLink4Url"`
-	FooterLink5Label string `json:"footerLink5Label"`
-	FooterLink5Url string `json:"footerLink5Url"`
+	FooterUpdatesUrl   string `json:"footerUpdatesUrl"`
+	FooterSeriesLabel  string `json:"footerSeriesLabel"`
+	FooterSeriesUrl    string `json:"footerSeriesUrl"`
+	FooterAdminLabel   string `json:"footerAdminLabel"`
+	FooterAdminUrl     string `json:"footerAdminUrl"`
+	FooterLink4Label   string `json:"footerLink4Label"`
+	FooterLink4Url     string `json:"footerLink4Url"`
+	FooterLink5Label   string `json:"footerLink5Label"`
+	FooterLink5Url     string `json:"footerLink5Url"`
 }
 
 type AnnouncementInput struct {

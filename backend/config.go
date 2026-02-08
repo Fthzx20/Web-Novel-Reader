@@ -18,21 +18,25 @@ type Config struct {
 	JWTTTL             time.Duration
 	AdminEmails        []string
 	ModerationPassword string
+	CorsOrigins        []string
+	TrustedProxies     []string
 }
 
 func LoadConfig() Config {
 	loadDotEnv()
 	return Config{
-		Port:              getEnv("PORT", "8081"),
-		APIKey:            os.Getenv("API_KEY"),
-		DatabaseURL:       os.Getenv("DATABASE_URL"),
-		DBMaxConns:        getEnvInt("DB_MAX_CONNS", 10),
-		DBMaxIdleConns:    getEnvInt("DB_MAX_IDLE_CONNS", 5),
-		DBConnMaxLifetime: getEnvDuration("DB_CONN_MAX_LIFETIME", "30m"),
-		JWTSecret:         getEnv("JWT_SECRET", "dev-secret"),
-		JWTTTL:            getEnvDuration("JWT_TTL", "24h"),
-		AdminEmails:       getEnvList("ADMIN_EMAILS"),
+		Port:               getEnv("PORT", "8081"),
+		APIKey:             os.Getenv("API_KEY"),
+		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		DBMaxConns:         getEnvInt("DB_MAX_CONNS", 10),
+		DBMaxIdleConns:     getEnvInt("DB_MAX_IDLE_CONNS", 5),
+		DBConnMaxLifetime:  getEnvDuration("DB_CONN_MAX_LIFETIME", "30m"),
+		JWTSecret:          getEnv("JWT_SECRET", "dev-secret"),
+		JWTTTL:             getEnvDuration("JWT_TTL", "24h"),
+		AdminEmails:        getEnvList("ADMIN_EMAILS"),
 		ModerationPassword: os.Getenv("MODERATION_PASSWORD"),
+		CorsOrigins:        getEnvList("CORS_ORIGINS"),
+		TrustedProxies:     getEnvList("TRUSTED_PROXIES"),
 	}
 }
 

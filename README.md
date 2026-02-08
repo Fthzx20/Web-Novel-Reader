@@ -81,3 +81,7 @@ The frontend expects the API at `http://localhost:8080` by default. You can over
 ```
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
+
+## Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for Vercel + VPS setup and production env examples.

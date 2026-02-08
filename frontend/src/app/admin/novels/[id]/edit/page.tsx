@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, BookmarkCheck, ChevronDown, Save } from "lucide-react";
 
@@ -22,7 +23,7 @@ import {
   uploadNovelCover,
   type AdminNovel,
 } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { loadDraft, removeDraft, saveDraft as persistDraft } from "@/lib/draft-storage";
 import { serializePlateToText } from "@/lib/plate-content";
 import { resolveAssetUrl } from "@/lib/utils";
@@ -60,11 +61,11 @@ type ChapterDraft = {
 };
 
 export default function EditNovelPage() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checked, setChecked] = useState(false);
   const params = useParams();
   const router = useRouter();
   const novelId = Number(Array.isArray(params.id) ? params.id[0] : params.id);
+  const session = useAuthSession();
+  const isAdmin = session?.user.role === "admin";
   const [novel, setNovel] = useState<AdminNovel | null>(null);
   const [status, setStatus] = useState("Ongoing");
   const [title, setTitle] = useState("");
@@ -102,33 +103,7 @@ export default function EditNovelPage() {
   );
 
   useEffect(() => {
-    const session = loadSession();
-    setIsAdmin(session?.user.role === "admin");
-    setChecked(true);
-  }, []);
-
-  if (checked && !isAdmin) {
-    return (
-      <div className="min-h-screen bg-background text-foreground">
-        <SiteNav />
-        <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center px-6 py-16">
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle>Admin access required</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm text-muted-foreground">
-              <p>Please log in with an admin account to edit projects.</p>
-              <Button asChild className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90">
-                <a href="/auth/sign-in">Login</a>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-  useEffect(() => {
-    if (!novelId) {
+    if (!isAdmin || !novelId) {
       return;
     }
     Promise.all([fetchNovel(novelId), fetchChaptersByNovel(novelId)])
@@ -157,10 +132,10 @@ export default function EditNovelPage() {
       .catch((err) => {
         setNotice(err instanceof Error ? err.message : "Failed to load project.");
       });
-  }, [novelId]);
+  }, [isAdmin, novelId]);
 
   useEffect(() => {
-    if (!draftKey) {
+    if (!draftKey || !isAdmin) {
       return;
     }
     let mounted = true;
@@ -173,9 +148,12 @@ export default function EditNovelPage() {
     return () => {
       mounted = false;
     };
-  }, [draftKey]);
+  }, [draftKey, isAdmin]);
 
   useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
     if (!editorOpen) {
       editorInitializedRef.current = false;
       return;
@@ -208,30 +186,33 @@ export default function EditNovelPage() {
     setEditorNotice("");
     setResumeDraft(false);
     editorInitializedRef.current = true;
-  }, [editorOpen, chapters, draft, resumeDraft]);
+  }, [editorOpen, chapters, draft, resumeDraft, isAdmin]);
 
-  const saveDraft = (manual: boolean) => {
-    if (!draftKey) {
-      return;
-    }
-    const payload: ChapterDraft = {
-      number: chapterNumber,
-      volume: chapterVolume,
-      title: chapterTitle,
-      value: chapterValueRef.current,
-      savedAt: new Date().toISOString(),
-    };
-    void persistDraft(draftKey, payload)
-      .then(() => {
-        setDraft(payload);
-        setDraftStatus(
-          `${manual ? "Draft saved" : "Auto-saved"} ${new Date().toLocaleTimeString()}`
-        );
-      })
-      .catch(() => {
-        setDraftStatus("Draft too large to save locally.");
-      });
-  };
+  const saveDraft = useCallback(
+    (manual: boolean) => {
+      if (!draftKey) {
+        return;
+      }
+      const payload: ChapterDraft = {
+        number: chapterNumber,
+        volume: chapterVolume,
+        title: chapterTitle,
+        value: chapterValueRef.current,
+        savedAt: new Date().toISOString(),
+      };
+      void persistDraft(draftKey, payload)
+        .then(() => {
+          setDraft(payload);
+          setDraftStatus(
+            `${manual ? "Draft saved" : "Auto-saved"} ${new Date().toLocaleTimeString()}`
+          );
+        })
+        .catch(() => {
+          setDraftStatus("Draft too large to save locally.");
+        });
+    },
+    [chapterNumber, chapterTitle, chapterVolume, draftKey]
+  );
 
   useEffect(() => {
     if (!editorOpen) {
@@ -240,7 +221,7 @@ export default function EditNovelPage() {
     saveDraft(false);
     const handle = window.setInterval(() => saveDraft(false), 60000);
     return () => window.clearInterval(handle);
-  }, [editorOpen]);
+  }, [editorOpen, saveDraft]);
 
   const moveChapter = async (index: number, direction: "up" | "down") => {
     const nextIndex = direction === "up" ? index - 1 : index + 1;
@@ -325,6 +306,45 @@ export default function EditNovelPage() {
       setEditorSaving(false);
     }
   };
+
+  if (session === undefined) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <SiteNav />
+        <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center px-6 py-16">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>Novel editor</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Loading session...
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <SiteNav />
+        <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center px-6 py-16">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>Admin access required</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
+              <p>Please log in with an admin account to edit projects.</p>
+              <Button asChild className="bg-amber-200 text-zinc-950 hover:bg-amber-200/90">
+                <a href="/auth/sign-in">Login</a>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (editorOpen) {
     return (
@@ -463,10 +483,13 @@ export default function EditNovelPage() {
               </div>
               <div className="h-40 w-28 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-card/60">
                 {resolvedCoverUrl ? (
-                  <img
+                  <Image
                     src={resolvedCoverUrl}
                     alt={novel?.title ?? "Novel cover"}
+                    width={112}
+                    height={160}
                     className="h-full w-full object-cover"
+                    unoptimized
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">

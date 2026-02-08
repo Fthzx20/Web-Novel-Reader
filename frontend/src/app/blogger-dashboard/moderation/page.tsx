@@ -15,7 +15,7 @@ import {
   updateUserStatus,
   type AdminUser,
 } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 
 const formatDate = (value: string) => {
   const parsed = Date.parse(value);
@@ -73,7 +73,7 @@ export default function AccountModerationPage() {
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
-  const session = loadSession();
+  const session = useAuthSession();
 
   const loadUsers = async () => {
     setNotice("");
@@ -90,7 +90,7 @@ export default function AccountModerationPage() {
 
   useEffect(() => {
     setIsAdmin(session?.user.role === "admin");
-  }, []);
+  }, [session?.user.role]);
 
   useEffect(() => {
     if (session?.user.role !== "admin" || typeof window === "undefined") {
@@ -103,7 +103,7 @@ export default function AccountModerationPage() {
     } else {
       setIsUnlocked(false);
     }
-  }, []);
+  }, [session?.user.role]);
 
   useEffect(() => {
     if (!isAdmin || !isUnlocked) {
@@ -465,7 +465,6 @@ export default function AccountModerationPage() {
                 const isSelf = session?.user.id === user.id;
                 const isBanned = user.status.toLowerCase() === "banned";
                 const nextRole = user.role === "admin" ? "user" : "admin";
-                const nextStatus = isBanned ? "active" : "banned";
 
                 return (
                   <div
@@ -524,9 +523,8 @@ export default function AccountModerationPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-red-500 hover:text-red-600"
+                        className="w-full sm:w-auto text-red-500 hover:text-red-600"
                         disabled={isSelf}
-                        className="w-full sm:w-auto"
                         onClick={() => requestUserAction(user, "delete")}
                       >
                         Delete

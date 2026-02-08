@@ -17,8 +17,9 @@ export function ImageElementStatic(
           className="relative min-w-[92px] max-w-full"
           style={{ textAlign: align }}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            alt={(props.attributes as any).alt}
+            alt={(props.attributes as { alt?: string }).alt}
             className={cn(
               'w-full max-w-full cursor-default object-cover px-0',
               'rounded-sm'

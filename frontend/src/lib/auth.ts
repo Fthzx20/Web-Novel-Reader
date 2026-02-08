@@ -14,6 +14,13 @@ export type AuthSession = {
 
 export const AUTH_KEY = "nocturne:auth";
 
+const notifyAuthChange = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new Event("auth-session"));
+};
+
 export function loadSession(): AuthSession | null {
   if (typeof window === "undefined") {
     return null;
@@ -35,6 +42,7 @@ export function saveSession(session: AuthSession) {
     return;
   }
   window.localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+  notifyAuthChange();
 }
 
 export function clearSession() {
@@ -42,4 +50,5 @@ export function clearSession() {
     return;
   }
   window.localStorage.removeItem(AUTH_KEY);
+  notifyAuthChange();
 }

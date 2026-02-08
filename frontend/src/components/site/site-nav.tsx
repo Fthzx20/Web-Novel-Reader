@@ -6,14 +6,15 @@ import { useEffect, useState } from "react";
 import { BookOpenText, Crown, Flame, Menu, User, X, History, Bookmark } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { clearSession, loadSession, type AuthSession } from "@/lib/auth";
+import { clearSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { fetchSiteSettings } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/utils";
 
 export function SiteNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const session = useAuthSession();
   const [siteTitle, setSiteTitle] = useState("Malaz Translation");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const resolvedLogoUrl = logoUrl ? resolveAssetUrl(logoUrl) : null;
@@ -21,10 +22,6 @@ export function SiteNav() {
   const displayName = session?.user.name ?? "Profile";
   const isAdmin = session?.user.role === "admin";
   const displayRole = isAdmin ? "Admin" : "";
-
-  useEffect(() => {
-    setSession(loadSession());
-  }, []);
 
   useEffect(() => {
     fetchSiteSettings()
@@ -88,7 +85,6 @@ export function SiteNav() {
                       className="w-full rounded-md px-3 py-2 text-left hover:bg-muted"
                       onClick={() => {
                         clearSession();
-                        setSession(null);
                         setProfileOpen(false);
                       }}
                     >
@@ -152,7 +148,6 @@ export function SiteNav() {
                   className="justify-start"
                   onClick={() => {
                     clearSession();
-                    setSession(null);
                     setMenuOpen(false);
                   }}
                 >

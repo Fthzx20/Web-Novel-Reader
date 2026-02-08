@@ -1,12 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, FileText, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -31,13 +32,14 @@ import {
   uploadNovelCover,
   type AdminNovel,
 } from "@/lib/api";
-import { loadSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { resolveAssetUrl } from "@/lib/utils";
 
 export default function BloggerLibraryPage() {
   const [novels, setNovels] = useState<AdminNovel[]>([]);
   const [notice, setNotice] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const session = useAuthSession();
+  const isAdmin = session?.user.role === "admin";
   const [newPostOpen, setNewPostOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
@@ -59,10 +61,15 @@ export default function BloggerLibraryPage() {
   };
 
   useEffect(() => {
-    const session = loadSession();
-    setIsAdmin(session?.user.role === "admin");
-    void loadNovels();
-  }, []);
+    if (!session) {
+      return;
+    }
+    fetchNovelsAdmin()
+      .then((data) => setNovels(data))
+      .catch((err) =>
+        setNotice(err instanceof Error ? err.message : "Failed to load library.")
+      );
+  }, [session]);
 
   const handleCreateNovel = async () => {
     if (!isAdmin) {
@@ -162,10 +169,13 @@ export default function BloggerLibraryPage() {
                     <div className="flex items-start gap-4">
                       <div className="h-24 w-16 shrink-0 overflow-hidden rounded-lg border border-border/50 bg-background/60">
                         {coverUrl ? (
-                          <img
+                          <Image
                             src={coverUrl}
                             alt={novel.title}
+                            width={64}
+                            height={96}
                             className="h-full w-full object-cover"
+                            unoptimized
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-sm font-semibold">

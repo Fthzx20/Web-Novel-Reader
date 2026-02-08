@@ -33,7 +33,7 @@ export type MessageDataPart = {
 
 export type Chat = UseChatHelpers<ChatMessage>;
 
-export type ChatMessage = UIMessage<{}, MessageDataPart>;
+export type ChatMessage = UIMessage<Record<string, never>, MessageDataPart>;
 
 export const useChat = () => {
   const editor = useEditorRef();
@@ -72,9 +72,11 @@ export const useChat = () => {
           let sample: 'comment' | 'markdown' | 'mdx' | null = null;
 
           try {
-            const content = JSON.parse(init?.body as string)
-              .messages.at(-1)
-              .parts.find((p: any) => p.type === 'text')?.text;
+            const parsed = JSON.parse(init?.body as string) as {
+              messages?: Array<{ parts?: Array<{ type?: string; text?: string }> }>;
+            };
+            const parts = parsed.messages?.at(-1)?.parts ?? [];
+            const content = parts.find((part) => part.type === 'text')?.text ?? '';
 
             if (content.includes('Generate a markdown sample')) {
               sample = 'markdown';
@@ -186,7 +188,7 @@ export const useChat = () => {
   };
 
   React.useEffect(() => {
-    editor.setOption(AIChatPlugin, 'chat', chat as any);
+    editor.setOption(AIChatPlugin, 'chat', chat as Chat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.status, chat.messages, chat.error]);
 

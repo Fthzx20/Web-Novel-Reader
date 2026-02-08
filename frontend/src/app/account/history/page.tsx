@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { clearReadingHistory, fetchReadingHistory } from "@/lib/api";
-import { clearSession, loadSession, type AuthSession } from "@/lib/auth";
+import { clearSession } from "@/lib/auth";
+import { useAuthSession } from "@/lib/use-auth-session";
 import { SiteNav } from "@/components/site/site-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,28 +21,23 @@ type HistoryItem = {
 };
 
 export default function ReadingHistoryPage() {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [checked, setChecked] = useState(false);
-  const [items, setItems] = useState<HistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const session = useAuthSession();
+  const [items, setItems] = useState<HistoryItem[] | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const isLoading = session && items === null;
 
   useEffect(() => {
-    const loaded = loadSession();
-    setSession(loaded);
-    setChecked(true);
-    if (!loaded) {
-      setLoading(false);
+    if (!session) {
       return;
     }
-    fetchReadingHistory(loaded.token)
+    fetchReadingHistory(session.token)
       .then((data) => setItems(data))
       .catch(() => setError("Unable to load history."))
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => setItems((current) => current ?? []));
+  }, [session]);
 
-  if (!checked) {
+  if (session === undefined) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <SiteNav />
@@ -94,7 +90,7 @@ export default function ReadingHistoryPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              disabled={loading || items.length === 0}
+              disabled={isLoading || (items?.length ?? 0) === 0}
               onClick={async () => {
                 if (typeof window !== "undefined") {
                   const confirmed = window.confirm(
@@ -130,17 +126,19 @@ export default function ReadingHistoryPage() {
           </div>
         </div>
         <div className="mt-6 grid gap-4">
-          {loading && <p className="text-sm text-muted-foreground">Loading history...</p>}
+          {session && !items && (
+            <p className="text-sm text-muted-foreground">Loading history...</p>
+          )}
           {error && <p className="text-sm text-red-400">{error}</p>}
           {notice && <p className="text-sm text-amber-200">{notice}</p>}
-          {!loading && !error && items.length === 0 && (
+          {session && items && !error && items.length === 0 && (
             <Card>
               <CardContent className="py-6 text-sm text-muted-foreground">
                 Your reading history will appear here once you open chapters.
               </CardContent>
             </Card>
           )}
-          {items.map((item) => (
+          {items?.map((item) => (
             <Card key={item.id}>
               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                 <div>
