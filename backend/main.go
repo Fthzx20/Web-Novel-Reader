@@ -27,7 +27,9 @@ func main() {
 		corsConfig.AllowAllOrigins = false
 		corsConfig.AllowOrigins = cfg.CorsOrigins
 	} else {
-		corsConfig.AllowAllOrigins = true
+		corsConfig.AllowOrigins = []string{"https://malazscans.my.id"}
+		corsConfig.AllowAllOrigins = false
+
 	}
 	corsConfig.AllowHeaders = append(corsConfig.AllowHeaders, "Authorization", "X-API-Key", "X-Moderation-Password")
 	router.Use(cors.New(corsConfig))
@@ -40,7 +42,7 @@ func main() {
 	registerRoutes(router, repo, cfg)
 
 	server := &http.Server{
-		Addr:              ":" + cfg.Port,
+		Addr:              "0.0.0.0:" + cfg.Port,
 		Handler:           router,
 		ReadTimeout:       cfg.ServerReadTimeout,
 		WriteTimeout:      cfg.ServerWriteTimeout,
